@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Depth 3 — zone001</title>
+<!-- 哨兵:根路径,由主站提供。漏了 entries_browser 恒空 ⇒ 读数是死的(§3.3 最硬一条) -->
+<link rel="stylesheet" href="/s.css">
+<style>
+  body{font:16px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;max-width:40rem;margin:4rem auto;padding:0 1rem}
+  h1{font-size:1.1rem;font-weight:600}
+  code{background:#0001;padding:.1em .3em}
+  nav a{display:block;margin:.2rem 0}
+</style>
+</head>
+<body>
+<h1>Depth 3</h1>
+<p>Infrastructure fixture. No agent has written anything here yet.</p>
+<p>Public path: <code>/zone001/a/b/c.html</code><br>
+Covered by: <code>/zone001/*/*/*</code><br>
+This is the one that settles the wildcard question the main site's own config comment left open.</p>
+<nav>
+<a href="/zone001/index.html">/zone001/index.html</a>
+<a href="/zone001/a/b.html">/zone001/a/b.html</a>
+<a href="/zone001/a/b/c.html">/zone001/a/b/c.html</a>
+</nav>
+</body>
+</html>

@@ -1,0 +1,6 @@
+.DS_Store
+node_modules/
+# 凭证一律不进这个 repo(它是 public)
+*.pem
+*.key
+id_*

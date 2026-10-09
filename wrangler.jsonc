@@ -1,0 +1,30 @@
+{
+  // ben-pages · intelligenism.com/zone001/ 的 origin。
+  // 权威:_territory/territory001/pz_ben001/guidline.md §3.0 / §3.3b
+  //
+  // ★ 这个 Worker 必须【不可寻址】:不开 workers.dev、不配 route、不绑自定义域。
+  //   apex(intelligenism-com)用 service binding 投递,是唯一进得来的通路。
+  //   开任何一个触发器 = 多一扇公网门 = 重复内容 + 品牌面暴露,而且悄无声息。
+  //
+  // ★ 本文件与 worker/ 由人类所有,ben 不许改(§3.3b:部署侧闸哈希钉死,
+  //   期望值存 CF 面板变量 —— 不能存在这个 repo 里)。
+  "name": "ben-pages",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-09",
+
+  // ★ 不可寻址的那一半(另一半是面板里不配 route、不绑域)。
+  "workers_dev": false,
+
+  "assets": {
+    // 指向 site/ 而不是仓库根 —— 否则 wrangler.jsonc 和 worker/ 自己
+    // 也会被当成静态资源发出去。这同时就是 ben 的写域边界(§1.4)。
+    "directory": "./site/",
+    "binding": "ASSETS",
+
+    // 与主站同一条理由:默认的 auto-trailing-slash 会把 /x.html 307 跳到 /x,
+    // 一次真访问落两行 kind='html',闸的分母从第一天起就是错的。
+    "html_handling": "none"
+  },
+
+  "observability": { "enabled": true }
+}
