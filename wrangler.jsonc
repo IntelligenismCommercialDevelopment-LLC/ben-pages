@@ -6,8 +6,10 @@
   //   apex(intelligenism-com)用 service binding 投递,是唯一进得来的通路。
   //   开任何一个触发器 = 多一扇公网门 = 重复内容 + 品牌面暴露,而且悄无声息。
   //
-  // ★ 本文件与 worker/ 由人类所有,ben 不许改(§3.3b:部署侧闸哈希钉死,
+  // ★ 本文件、worker/、usage.md 由人类所有,ben 不许改(§3.3b:部署侧闸哈希钉死,
   //   期望值存 CF 面板变量 —— 不能存在这个 repo 里)。
+  //   闸是【正列表】:site/ 之外的文件集合必须恰好是
+  //   {.gitignore, usage.md, wrangler.jsonc, worker/index.ts},多一个就中止部署。
   "name": "ben-pages",
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-09",
