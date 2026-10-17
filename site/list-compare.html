@@ -484,6 +484,8 @@ function formatTransfer(model) {
   lines.push('List comparison handoff');
   lines.push('Tool: list-compare-v1 (string comparison only)');
   lines.push('');
+  lines.push('- Trim ASCII spaces/tabs at both ends = ' + (r.trim ? 'ON' : 'OFF'));
+  lines.push('- Case-sensitive = ' + (r.caseSensitive ? 'ON' : 'OFF'));
   lines.push('Rules used for this run:');
   lines.push('- ' + r.texts.trim);
   lines.push('- ' + r.texts.casef);
@@ -629,10 +631,10 @@ function pushTransferAssertions(assertions, model, fx) {
   if (fx.id === 'F1') {
     pushAssertion(assertions, 'transfer shows both left SKU-A raw lines with trailing space', 'left count 2: line 1 raw "SKU-A "; line 3 raw "SKU-A "', text.indexOf('left count 2: line 1 raw "SKU-A "; line 3 raw "SKU-A "') >= 0 ? 'found' : 'missing', text.indexOf('left count 2: line 1 raw "SKU-A "; line 3 raw "SKU-A "') >= 0);
     pushAssertion(assertions, 'transfer shows the right SKU-A source line', 'right count 1: line 2 raw "SKU-A"', text.indexOf('right count 1: line 2 raw "SKU-A"') >= 0 ? 'found' : 'missing', text.indexOf('right count 1: line 2 raw "SKU-A"') >= 0);
-    pushAssertion(assertions, 'transfer keeps 001 and 1 as separate items', 'both "  2. \\"001\\"" and "  2. \\"1\\"" present', (text.indexOf('  2. "001"') >= 0 && text.indexOf('  2. "1"') >= 0) ? 'both found' : 'missing', text.indexOf('  2. "001"') >= 0 && text.indexOf('  2. "1"') >= 0);
+    pushAssertion(assertions, 'transfer keeps 001 and 1 as separate items', 'both "  1. \\"001\\"" and "  2. \\"1\\"" present', (text.indexOf('  1. "001"') >= 0 && text.indexOf('  2. "1"') >= 0) ? 'both found' : 'missing', text.indexOf('  1. "001"') >= 0 && text.indexOf('  2. "1"') >= 0);
     pushAssertion(assertions, 'transfer shows trailing space inside JSON-style quotes', 'raw "SKU-A " with a space before the closing quote', text.indexOf('raw "SKU-A "') >= 0 ? 'found' : 'missing', text.indexOf('raw "SKU-A "') >= 0);
-    pushAssertion(assertions, 'transfer states the trim switch used', 'Trim ASCII spaces/tabs at both ends: ON', text.indexOf('Trim ASCII spaces/tabs at both ends: ON') >= 0 ? 'found' : 'missing', text.indexOf('Trim ASCII spaces/tabs at both ends: ON') >= 0);
-    pushAssertion(assertions, 'transfer states the case switch used', 'Case-sensitive: ON', text.indexOf('Case-sensitive: ON') >= 0 ? 'found' : 'missing', text.indexOf('Case-sensitive: ON') >= 0);
+    pushAssertion(assertions, 'transfer states the trim switch used', 'Trim ASCII spaces/tabs at both ends = ON', text.indexOf('Trim ASCII spaces/tabs at both ends = ON') >= 0 ? 'found' : 'missing', text.indexOf('Trim ASCII spaces/tabs at both ends = ON') >= 0);
+    pushAssertion(assertions, 'transfer states the case switch used', 'Case-sensitive = ON', text.indexOf('Case-sensitive = ON') >= 0 ? 'found' : 'missing', text.indexOf('Case-sensitive = ON') >= 0);
     pushAssertion(assertions, 'transfer carries the identity limitation', 'not the same person, customer, or product', text.indexOf('not the same person, customer, or product') >= 0 ? 'found' : 'missing', text.indexOf('not the same person, customer, or product') >= 0);
     pushAssertion(assertions, 'transfer carries the Unicode limitation', 'no general Unicode case folding or Unicode normalization', text.indexOf('no general Unicode case folding or Unicode normalization') >= 0 ? 'found' : 'missing', text.indexOf('no general Unicode case folding or Unicode normalization') >= 0);
     pushAssertion(assertions, 'transfer carries both side counts', 'Left: 5 / 1 / 4 / 3 / 1 and Right: 3 / 0 / 3 / 3 / 0', (text.indexOf('Left: 5 / 1 / 4 / 3 / 1') >= 0 && text.indexOf('Right: 3 / 0 / 3 / 3 / 0') >= 0) ? 'both found' : 'missing', (text.indexOf('Left: 5 / 1 / 4 / 3 / 1') >= 0 && text.indexOf('Right: 3 / 0 / 3 / 3 / 0') >= 0));
@@ -640,7 +642,7 @@ function pushTransferAssertions(assertions, model, fx) {
   if (fx.id === 'F4' || fx.id === 'F6') {
     var expectedCase = fx.options.caseSensitive ? 'ON' : 'OFF';
     var expectedTrim = fx.options.trim ? 'ON' : 'OFF';
-    pushAssertion(assertions, 'transfer rule values follow the options of this run', 'Trim ASCII spaces/tabs at both ends: ' + expectedTrim + ' and Case-sensitive: ' + expectedCase, (text.indexOf('Trim ASCII spaces/tabs at both ends: ' + expectedTrim) >= 0 && text.indexOf('Case-sensitive: ' + expectedCase) >= 0) ? 'both found' : 'missing', (text.indexOf('Trim ASCII spaces/tabs at both ends: ' + expectedTrim) >= 0 && text.indexOf('Case-sensitive: ' + expectedCase) >= 0));
+    pushAssertion(assertions, 'transfer rule values follow the options of this run', 'Trim ASCII spaces/tabs at both ends = ' + expectedTrim + ' and Case-sensitive = ' + expectedCase, (text.indexOf('Trim ASCII spaces/tabs at both ends = ' + expectedTrim) >= 0 && text.indexOf('Case-sensitive = ' + expectedCase) >= 0) ? 'both found' : 'missing', (text.indexOf('Trim ASCII spaces/tabs at both ends = ' + expectedTrim) >= 0 && text.indexOf('Case-sensitive = ' + expectedCase) >= 0));
   }
 }
 
@@ -1027,7 +1029,7 @@ function runDomTests(fixtures) {
       push(assertions, 'right SKU-A source line shown', 'line 2 raw "SKU-A"', res.indexOf('line 2 raw "SKU-A"') >= 0 ? 'found' : 'missing', res.indexOf('line 2 raw "SKU-A"') >= 0);
       var hv = els.handoff.value;
       push(assertions, 'handoff textarea filled with rules and groups', 'contains Rules used for this run and Only in right list (right first-seen order): 2', (hv.indexOf('Rules used for this run:') >= 0 && hv.indexOf('Only in right list (right first-seen order): 2') >= 0) ? 'both found' : 'missing', hv.indexOf('Rules used for this run:') >= 0 && hv.indexOf('Only in right list (right first-seen order): 2') >= 0);
-      push(assertions, 'handoff keeps 001 and 1 apart', 'both "  2. \\"001\\"" and "  2. \\"1\\"" present', (hv.indexOf('  2. "001"') >= 0 && hv.indexOf('  2. "1"') >= 0) ? 'both found' : 'missing', hv.indexOf('  2. "001"') >= 0 && hv.indexOf('  2. "1"') >= 0);
+      push(assertions, 'handoff keeps 001 and 1 apart', 'both "  1. \\"001\\"" and "  2. \\"1\\"" present', (hv.indexOf('  1. "001"') >= 0 && hv.indexOf('  2. "1"') >= 0) ? 'both found' : 'missing', hv.indexOf('  1. "001"') >= 0 && hv.indexOf('  2. "1"') >= 0);
       push(assertions, 'copy button enabled after a successful compare', 'false', String(els.copyButton.disabled), els.copyButton.disabled === false);
     });
   });
@@ -1064,7 +1066,7 @@ function runDomTests(fixtures) {
       push(assertions, 'F4 common keys rendered after re-compare', '"a", "x"', keysOf(els.groupCommon), keysOf(els.groupCommon) === '"a", "x"');
       push(assertions, 'F4 both only-groups show None', 'None in both', (els.groupLeftOnly.textContent.indexOf('None') >= 0 && els.groupRightOnly.textContent.indexOf('None') >= 0) ? 'None in both' : 'missing', els.groupLeftOnly.textContent.indexOf('None') >= 0 && els.groupRightOnly.textContent.indexOf('None') >= 0);
       push(assertions, 'raw uppercase text preserved in the rendered records', 'contains raw "A"', els.results.textContent.indexOf('raw "A"') >= 0 ? 'found' : 'missing', els.results.textContent.indexOf('raw "A"') >= 0);
-      push(assertions, 'handoff rule value flipped with the option', 'Case-sensitive: OFF', els.handoff.value.indexOf('Case-sensitive: OFF') >= 0 ? 'found' : 'missing', els.handoff.value.indexOf('Case-sensitive: OFF') >= 0);
+      push(assertions, 'handoff rule value flipped with the option', 'Case-sensitive = OFF', els.handoff.value.indexOf('Case-sensitive = OFF') >= 0 ? 'found' : 'missing', els.handoff.value.indexOf('Case-sensitive = OFF') >= 0);
     });
   });
 
@@ -1080,7 +1082,7 @@ function runDomTests(fixtures) {
       setCheckbox(els.trimOption, false);
       els.compareButton.click();
       push(assertions, 'F6 common keys rendered after trim off', '" A ", "A"', keysOf(els.groupCommon), keysOf(els.groupCommon) === '" A ", "A"');
-      push(assertions, 'handoff trim value flipped with the option', 'Trim ASCII spaces/tabs at both ends: OFF', els.handoff.value.indexOf('Trim ASCII spaces/tabs at both ends: OFF') >= 0 ? 'found' : 'missing', els.handoff.value.indexOf('Trim ASCII spaces/tabs at both ends: OFF') >= 0);
+      push(assertions, 'handoff trim value flipped with the option', 'Trim ASCII spaces/tabs at both ends = OFF', els.handoff.value.indexOf('Trim ASCII spaces/tabs at both ends = OFF') >= 0 ? 'found' : 'missing', els.handoff.value.indexOf('Trim ASCII spaces/tabs at both ends = OFF') >= 0);
     });
   });
 
