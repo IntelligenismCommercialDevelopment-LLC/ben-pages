@@ -1,0 +1,1218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compare two lists, then hand off a checkable result</title>
+<link rel="stylesheet" href="/s.css">
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 62rem; padding: 1rem; line-height: 1.45; color: #14181f; }
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.2rem; margin-top: 1.6rem; }
+  h3 { font-size: 1.05rem; }
+  h4 { font-size: 1rem; margin: 0.7rem 0 0.3rem; }
+  .task-note, .privacy, .status { font-size: 0.95rem; }
+  .privacy { border: 1px solid #9aa3ad; padding: 0.5rem 0.7rem; background: #f6f8fa; }
+  .rules ul { margin: 0.3rem 0 0.6rem 1.1rem; padding: 0; }
+  .rules li { margin: 0.25rem 0; }
+  .inputs { display: flex; flex-wrap: wrap; gap: 1rem; }
+  .inputs .col { flex: 1 1 22rem; min-width: 18rem; display: flex; flex-direction: column; }
+  textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: 0.92rem; }
+  .options label { display: inline-block; margin: 0.4rem 1rem 0.4rem 0; }
+  .buttons button { margin: 0.25rem 0.5rem 0.25rem 0; }
+  .status { min-height: 1.3rem; }
+  .status.warn { color: #7a4d00; }
+  .status.error { color: #a11212; }
+  .status.ok { color: #0b5d1e; }
+  .stats div { font-family: ui-monospace, monospace; font-size: 0.92rem; }
+  .groups section { border-top: 1px solid #ccd2d9; padding-top: 0.4rem; margin-top: 0.8rem; }
+  .item-key { font-family: ui-monospace, monospace; background: #eef1f4; padding: 0 0.25rem; }
+  .groups li { margin: 0.45rem 0; }
+  .groups .refs { font-family: ui-monospace, monospace; font-size: 0.88rem; }
+  pre { white-space: pre-wrap; word-break: break-word; background: #f6f8fa; border: 1px solid #d6dbe1; padding: 0.4rem 0.6rem; font-size: 0.85rem; }
+  .pass { color: #0b5d1e; }
+  .fail { color: #a11212; font-weight: 600; }
+  details { margin: 0.4rem 0; }
+  summary { cursor: pointer; }
+  .gate { border: 1px solid #9aa3ad; padding: 0.5rem 0.7rem; background: #f6f8fa; }
+</style>
+</head>
+<body data-product="list-compare-v1">
+<h1>Compare two lists, then hand off a checkable result</h1>
+<p class="task-note">This page performs one task: it compares two plain multi-line lists of strings in this browser, shows the differences under explicit rules, and prepares an editable plain-text handoff. Whether this task is useful to anyone is an open question this page does not answer.</p>
+
+<section class="acceptance" id="acceptance" data-role="acceptance">
+  <h2>Synthetic acceptance checks — expected vs actual</h2>
+  <p>These checks run in your browser on synthetic data that is declared before the implementation below. Every case shows the pre-declared expected value next to the actual value. These synthetic checks are not evidence of external use or demand.</p>
+  <p class="gate" id="gate-status" data-role="gate-status" aria-live="polite"></p>
+  <p><button type="button" id="rerun-checks" data-role="rerun-button">Run synthetic checks again</button></p>
+  <h3>Production core checks (pure functions, no DOM)</h3>
+  <div id="core-report" data-role="core-report"></div>
+  <h3>Interface wiring checks (real DOM events on a temporary container)</h3>
+  <div id="dom-report" data-role="dom-report"></div>
+</section>
+
+<h2>Task workspace</h2>
+<div id="app-root"></div>
+
+<template id="app-template">
+  <section class="app" data-role="app">
+    <section class="rules" data-role="rules">
+      <h3>Comparison rules (visible at the task site)</h3>
+      <ul data-role="rules-list"></ul>
+      <p class="privacy" data-role="privacy"></p>
+    </section>
+    <div class="inputs">
+      <div class="col">
+        <label>Left list (one string per line)
+          <textarea data-role="left-input" rows="8" spellcheck="false"></textarea>
+        </label>
+      </div>
+      <div class="col">
+        <label>Right list (one string per line)
+          <textarea data-role="right-input" rows="8" spellcheck="false"></textarea>
+        </label>
+      </div>
+    </div>
+    <div class="options">
+      <label><input type="checkbox" data-role="trim-option" checked> Trim ASCII spaces/tabs at both ends</label>
+      <label><input type="checkbox" data-role="case-option" checked> Case-sensitive</label>
+    </div>
+    <div class="buttons">
+      <button type="button" data-role="compare-button">Compare lists</button>
+      <button type="button" data-role="load-example-button">Load synthetic example</button>
+      <button type="button" data-role="clear-button">Clear</button>
+    </div>
+    <p class="status" data-role="status" aria-live="polite"></p>
+    <div class="stats">
+      <div data-role="left-stats"></div>
+      <div data-role="right-stats"></div>
+    </div>
+    <div class="results" data-role="results">
+      <section data-role="group-common"></section>
+      <section data-role="group-left-only"></section>
+      <section data-role="group-right-only"></section>
+    </div>
+    <div class="handoff">
+      <label>Handoff text (editable before copying)
+        <textarea data-role="handoff-text" rows="12" spellcheck="false"></textarea>
+      </label>
+      <button type="button" data-role="copy-button">Copy edited handoff</button>
+    </div>
+  </section>
+</template>
+
+<script type="application/json" id="acceptance-fixtures">
+{
+  "ruleTexts": {
+    "input": "Input is two plain multi-line texts. Each line is one string. No CSV, table, name, e-mail, or number parsing. Input order is not required.",
+    "splitting": "Line splitting accepts CRLF, LF, and CR. An empty text has 0 lines. In a non-empty text, a final line break produces one trailing empty line, which is then counted as a blank line.",
+    "blanks": "A line that is empty or contains only ASCII spaces (U+0020) and tabs (U+0009) is always ignored as a value and counted as a blank line. Other Unicode whitespace is not treated as blank.",
+    "trim": "Trim ASCII spaces/tabs at both ends: ON removes only leading and trailing ASCII spaces and tabs before comparing; OFF keeps them for comparison. Blank-line handling is unchanged.",
+    "casef": "Case-sensitive: ON compares exact strings; OFF folds only ASCII A-Z to a-z (ASCII-only case folding; no general Unicode case folding or Unicode normalization).",
+    "dupes": "Rows with the same normalized key fold into one item, but every original line number, raw line, and occurrence count is kept on both sides.",
+    "zeros": "Leading zeros, punctuation, and inner spaces are kept: 001 is not 1, A-B is not A B. No numeric conversion, accent folding, full/half-width conversion, fuzzy matching, or identity judgment.",
+    "order": "Common items and left-only items follow the left first-seen order; right-only items follow the right first-seen order. Output is not alphabetically sorted.",
+    "limits": "Limits: at most 200,000 JavaScript UTF-16 code units and 10,000 lines per side. Over the limit the tool shows an error and clears results; it never truncates or returns partial results.",
+    "identity": "Matches mean equal strings under these rules, not the same person, customer, or product.",
+    "privacy": "Your lists are compared in this browser. They are not uploaded or saved by this tool. Copying is your choice. The page loads the site's /s.css stylesheet; list contents are not included in that request."
+  },
+  "cases": [
+    {
+      "id": "F1",
+      "note": "Fixed target example: trailing spaces, non-adjacent duplicate, blank line, leading zeros, 001 must not merge with 1.",
+      "left": "SKU-A \n001\nSKU-A \n\nx",
+      "right": "y\nSKU-A\n1",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 5, "blankLines": 1, "validRows": 4, "uniqueValues": 3, "duplicateExtraRows": 1},
+        "rightStats": {"inputLines": 3, "blankLines": 0, "validRows": 3, "uniqueValues": 3, "duplicateExtraRows": 0},
+        "common": [
+          {"key": "SKU-A", "left": {"count": 2, "records": [{"line": 1, "raw": "SKU-A ", "normalized": "SKU-A"}, {"line": 3, "raw": "SKU-A ", "normalized": "SKU-A"}]}, "right": {"count": 1, "records": [{"line": 2, "raw": "SKU-A", "normalized": "SKU-A"}]}}
+        ],
+        "leftOnly": [
+          {"key": "001", "left": {"count": 1, "records": [{"line": 2, "raw": "001", "normalized": "001"}]}, "right": {"count": 0, "records": []}},
+          {"key": "x", "left": {"count": 1, "records": [{"line": 5, "raw": "x", "normalized": "x"}]}, "right": {"count": 0, "records": []}}
+        ],
+        "rightOnly": [
+          {"key": "y", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 1, "raw": "y", "normalized": "y"}]}},
+          {"key": "1", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 3, "raw": "1", "normalized": "1"}]}}
+        ]
+      }
+    },
+    {
+      "id": "F2",
+      "note": "Unsorted input, non-adjacent duplicate, punctuation kept distinct.",
+      "left": "beta\nAlpha\nbeta\n001\nA-B\nA.B\nalpha",
+      "right": "A.B\n1\nalpha\nbeta\nAlpha\nA B",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 7, "blankLines": 0, "validRows": 7, "uniqueValues": 6, "duplicateExtraRows": 1},
+        "rightStats": {"inputLines": 6, "blankLines": 0, "validRows": 6, "uniqueValues": 6, "duplicateExtraRows": 0},
+        "common": [
+          {"key": "beta", "left": {"count": 2, "records": [{"line": 1, "raw": "beta", "normalized": "beta"}, {"line": 3, "raw": "beta", "normalized": "beta"}]}, "right": {"count": 1, "records": [{"line": 4, "raw": "beta", "normalized": "beta"}]}},
+          {"key": "Alpha", "left": {"count": 1, "records": [{"line": 2, "raw": "Alpha", "normalized": "Alpha"}]}, "right": {"count": 1, "records": [{"line": 5, "raw": "Alpha", "normalized": "Alpha"}]}},
+          {"key": "A.B", "left": {"count": 1, "records": [{"line": 6, "raw": "A.B", "normalized": "A.B"}]}, "right": {"count": 1, "records": [{"line": 1, "raw": "A.B", "normalized": "A.B"}]}},
+          {"key": "alpha", "left": {"count": 1, "records": [{"line": 7, "raw": "alpha", "normalized": "alpha"}]}, "right": {"count": 1, "records": [{"line": 3, "raw": "alpha", "normalized": "alpha"}]}}
+        ],
+        "leftOnly": [
+          {"key": "001", "left": {"count": 1, "records": [{"line": 4, "raw": "001", "normalized": "001"}]}, "right": {"count": 0, "records": []}},
+          {"key": "A-B", "left": {"count": 1, "records": [{"line": 5, "raw": "A-B", "normalized": "A-B"}]}, "right": {"count": 0, "records": []}}
+        ],
+        "rightOnly": [
+          {"key": "1", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 2, "raw": "1", "normalized": "1"}]}},
+          {"key": "A B", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 6, "raw": "A B", "normalized": "A B"}]}}
+        ]
+      }
+    },
+    {
+      "id": "F3",
+      "note": "Case-sensitive comparison keeps a/A and x/X apart.",
+      "left": "A\nx\nA",
+      "right": "a\nX\nA",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 3, "blankLines": 0, "validRows": 3, "uniqueValues": 2, "duplicateExtraRows": 1},
+        "rightStats": {"inputLines": 3, "blankLines": 0, "validRows": 3, "uniqueValues": 3, "duplicateExtraRows": 0},
+        "common": [
+          {"key": "A", "left": {"count": 2, "records": [{"line": 1, "raw": "A", "normalized": "A"}, {"line": 3, "raw": "A", "normalized": "A"}]}, "right": {"count": 1, "records": [{"line": 3, "raw": "A", "normalized": "A"}]}}
+        ],
+        "leftOnly": [
+          {"key": "x", "left": {"count": 1, "records": [{"line": 2, "raw": "x", "normalized": "x"}]}, "right": {"count": 0, "records": []}}
+        ],
+        "rightOnly": [
+          {"key": "a", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 1, "raw": "a", "normalized": "a"}]}},
+          {"key": "X", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 2, "raw": "X", "normalized": "X"}]}}
+        ]
+      }
+    },
+    {
+      "id": "F4",
+      "note": "Same input as F3 with ASCII-only case folding: keys fold, raw text is preserved.",
+      "left": "A\nx\nA",
+      "right": "a\nX\nA",
+      "options": {"trim": true, "caseSensitive": false},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": false, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 3, "blankLines": 0, "validRows": 3, "uniqueValues": 2, "duplicateExtraRows": 1},
+        "rightStats": {"inputLines": 3, "blankLines": 0, "validRows": 3, "uniqueValues": 2, "duplicateExtraRows": 1},
+        "common": [
+          {"key": "a", "left": {"count": 2, "records": [{"line": 1, "raw": "A", "normalized": "A"}, {"line": 3, "raw": "A", "normalized": "A"}]}, "right": {"count": 2, "records": [{"line": 1, "raw": "a", "normalized": "a"}, {"line": 3, "raw": "A", "normalized": "A"}]}},
+          {"key": "x", "left": {"count": 1, "records": [{"line": 2, "raw": "x", "normalized": "x"}]}, "right": {"count": 1, "records": [{"line": 2, "raw": "X", "normalized": "X"}]}}
+        ],
+        "leftOnly": [],
+        "rightOnly": []
+      }
+    },
+    {
+      "id": "F5",
+      "note": "Trim on: leading/trailing ASCII spaces and tabs removed before comparing; blank lines counted.",
+      "left": " A \nA\n\t\n",
+      "right": "A\n A ",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 4, "blankLines": 2, "validRows": 2, "uniqueValues": 1, "duplicateExtraRows": 1},
+        "rightStats": {"inputLines": 2, "blankLines": 0, "validRows": 2, "uniqueValues": 1, "duplicateExtraRows": 1},
+        "common": [
+          {"key": "A", "left": {"count": 2, "records": [{"line": 1, "raw": " A ", "normalized": "A"}, {"line": 2, "raw": "A", "normalized": "A"}]}, "right": {"count": 2, "records": [{"line": 1, "raw": "A", "normalized": "A"}, {"line": 2, "raw": " A ", "normalized": "A"}]}}
+        ],
+        "leftOnly": [],
+        "rightOnly": []
+      }
+    },
+    {
+      "id": "F6",
+      "note": "Same input as F5 with trim off: spaces are part of the compared string.",
+      "left": " A \nA\n\t\n",
+      "right": "A\n A ",
+      "options": {"trim": false, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": false, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 4, "blankLines": 2, "validRows": 2, "uniqueValues": 2, "duplicateExtraRows": 0},
+        "rightStats": {"inputLines": 2, "blankLines": 0, "validRows": 2, "uniqueValues": 2, "duplicateExtraRows": 0},
+        "common": [
+          {"key": " A ", "left": {"count": 1, "records": [{"line": 1, "raw": " A ", "normalized": " A "}]}, "right": {"count": 1, "records": [{"line": 2, "raw": " A ", "normalized": " A "}]}},
+          {"key": "A", "left": {"count": 1, "records": [{"line": 2, "raw": "A", "normalized": "A"}]}, "right": {"count": 1, "records": [{"line": 1, "raw": "A", "normalized": "A"}]}}
+        ],
+        "leftOnly": [],
+        "rightOnly": []
+      }
+    },
+    {
+      "id": "F7",
+      "note": "Empty input has 0 lines; CRLF and CR both split; trailing line break yields a counted blank line.",
+      "left": "",
+      "right": "q\r\nq\r",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 0, "blankLines": 0, "validRows": 0, "uniqueValues": 0, "duplicateExtraRows": 0},
+        "rightStats": {"inputLines": 3, "blankLines": 1, "validRows": 2, "uniqueValues": 1, "duplicateExtraRows": 1},
+        "common": [],
+        "leftOnly": [],
+        "rightOnly": [
+          {"key": "q", "left": {"count": 0, "records": []}, "right": {"count": 2, "records": [{"line": 1, "raw": "q", "normalized": "q"}, {"line": 2, "raw": "q", "normalized": "q"}]}}
+        ]
+      }
+    },
+    {
+      "id": "F8",
+      "note": "No Unicode normalization: e-acute composed and decomposed stay distinct; ASCII folding does not touch accented letters; leading zeros and punctuation kept.",
+      "left": "\u00e9\ne\u0301\n0\n001\nA-B",
+      "right": "e\u0301\n1\nA B\n\u00c9",
+      "options": {"trim": true, "caseSensitive": false},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": false, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 5, "blankLines": 0, "validRows": 5, "uniqueValues": 5, "duplicateExtraRows": 0},
+        "rightStats": {"inputLines": 4, "blankLines": 0, "validRows": 4, "uniqueValues": 4, "duplicateExtraRows": 0},
+        "common": [
+          {"key": "e\u0301", "left": {"count": 1, "records": [{"line": 2, "raw": "e\u0301", "normalized": "e\u0301"}]}, "right": {"count": 1, "records": [{"line": 1, "raw": "e\u0301", "normalized": "e\u0301"}]}}
+        ],
+        "leftOnly": [
+          {"key": "\u00e9", "left": {"count": 1, "records": [{"line": 1, "raw": "\u00e9", "normalized": "\u00e9"}]}, "right": {"count": 0, "records": []}},
+          {"key": "0", "left": {"count": 1, "records": [{"line": 3, "raw": "0", "normalized": "0"}]}, "right": {"count": 0, "records": []}},
+          {"key": "001", "left": {"count": 1, "records": [{"line": 4, "raw": "001", "normalized": "001"}]}, "right": {"count": 0, "records": []}},
+          {"key": "a-b", "left": {"count": 1, "records": [{"line": 5, "raw": "A-B", "normalized": "A-B"}]}, "right": {"count": 0, "records": []}}
+        ],
+        "rightOnly": [
+          {"key": "1", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 2, "raw": "1", "normalized": "1"}]}},
+          {"key": "a b", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 3, "raw": "A B", "normalized": "A B"}]}},
+          {"key": "\u00c9", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 4, "raw": "\u00c9", "normalized": "\u00c9"}]}}
+        ]
+      }
+    },
+    {
+      "id": "F9",
+      "note": "Literal markup and prototype keys are ordinary strings; nothing is executed or interpreted.",
+      "left": "\u003cimg src=x onerror=alert(1)>\n__proto__\nconstructor",
+      "right": "constructor\n\u003cimg src=x onerror=alert(1)>",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 3, "blankLines": 0, "validRows": 3, "uniqueValues": 3, "duplicateExtraRows": 0},
+        "rightStats": {"inputLines": 2, "blankLines": 0, "validRows": 2, "uniqueValues": 2, "duplicateExtraRows": 0},
+        "common": [
+          {"key": "\u003cimg src=x onerror=alert(1)>", "left": {"count": 1, "records": [{"line": 1, "raw": "\u003cimg src=x onerror=alert(1)>", "normalized": "\u003cimg src=x onerror=alert(1)>"}]}, "right": {"count": 1, "records": [{"line": 2, "raw": "\u003cimg src=x onerror=alert(1)>", "normalized": "\u003cimg src=x onerror=alert(1)>"}]}},
+          {"key": "constructor", "left": {"count": 1, "records": [{"line": 3, "raw": "constructor", "normalized": "constructor"}]}, "right": {"count": 1, "records": [{"line": 1, "raw": "constructor", "normalized": "constructor"}]}}
+        ],
+        "leftOnly": [
+          {"key": "__proto__", "left": {"count": 1, "records": [{"line": 2, "raw": "__proto__", "normalized": "__proto__"}]}, "right": {"count": 0, "records": []}}
+        ],
+        "rightOnly": []
+      }
+    },
+    {
+      "id": "F10",
+      "note": "Over the code-unit limit: a clear error, no partial result.",
+      "leftRepeat": {"unit": "a", "times": 200001},
+      "right": "",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {"expectedError": "INPUT_TOO_LONG"}
+    },
+    {
+      "id": "F11",
+      "note": "Over the line limit: 10000 repetitions of a line break give 10001 lines.",
+      "leftRepeat": {"unit": "a\n", "times": 10000},
+      "right": "",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {"expectedError": "TOO_MANY_LINES"}
+    }
+  ]
+}
+</script>
+
+<script id="compare-core">
+/* compare-core: pure functions only. No DOM, no network, no storage, no module loading. */
+var MAX_CODE_UNITS = 200000;
+var MAX_LINES = 10000;
+var BLANK_LINE_PATTERN = /^[ \t]*$/;
+var TRIM_PATTERN = /^[ \t]+|[ \t]+$/g;
+
+var RULE_TEXTS = {
+  input: "Input is two plain multi-line texts. Each line is one string. No CSV, table, name, e-mail, or number parsing. Input order is not required.",
+  splitting: "Line splitting accepts CRLF, LF, and CR. An empty text has 0 lines. In a non-empty text, a final line break produces one trailing empty line, which is then counted as a blank line.",
+  blanks: "A line that is empty or contains only ASCII spaces (U+0020) and tabs (U+0009) is always ignored as a value and counted as a blank line. Other Unicode whitespace is not treated as blank.",
+  trim: "Trim ASCII spaces/tabs at both ends: ON removes only leading and trailing ASCII spaces and tabs before comparing; OFF keeps them for comparison. Blank-line handling is unchanged.",
+  casef: "Case-sensitive: ON compares exact strings; OFF folds only ASCII A-Z to a-z (ASCII-only case folding; no general Unicode case folding or Unicode normalization).",
+  dupes: "Rows with the same normalized key fold into one item, but every original line number, raw line, and occurrence count is kept on both sides.",
+  zeros: "Leading zeros, punctuation, and inner spaces are kept: 001 is not 1, A-B is not A B. No numeric conversion, accent folding, full/half-width conversion, fuzzy matching, or identity judgment.",
+  order: "Common items and left-only items follow the left first-seen order; right-only items follow the right first-seen order. Output is not alphabetically sorted.",
+  limits: "Limits: at most 200,000 JavaScript UTF-16 code units and 10,000 lines per side. Over the limit the tool shows an error and clears results; it never truncates or returns partial results.",
+  identity: "Matches mean equal strings under these rules, not the same person, customer, or product.",
+  privacy: "Your lists are compared in this browser. They are not uploaded or saved by this tool. Copying is your choice. The page loads the site's /s.css stylesheet; list contents are not included in that request."
+};
+
+function foldAsciiLower(s) {
+  var out = '';
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    out += (c >= 65 && c <= 90) ? String.fromCharCode(c + 32) : s.charAt(i);
+  }
+  return out;
+}
+
+function compareLists(leftText, rightText, options) {
+  var trim = !!(options && options.trim);
+  var caseSensitive = !(options && options.caseSensitive === false);
+  var texts = [String(leftText === null || leftText === undefined ? '' : leftText), String(rightText === null || rightText === undefined ? '' : rightText)];
+  var sideNames = ['left', 'right'];
+  var i;
+  for (i = 0; i < 2; i++) {
+    if (texts[i].length > MAX_CODE_UNITS) {
+      return { error: { code: 'INPUT_TOO_LONG', message: 'The ' + sideNames[i] + ' input is over ' + MAX_CODE_UNITS + ' UTF-16 code units. Nothing was compared.' } };
+    }
+  }
+  var splitLines = [];
+  for (i = 0; i < 2; i++) {
+    var lines = texts[i].length === 0 ? [] : texts[i].split(/\r\n|\n|\r/);
+    if (lines.length > MAX_LINES) {
+      return { error: { code: 'TOO_MANY_LINES', message: 'The ' + sideNames[i] + ' input has over ' + MAX_LINES + ' lines. Nothing was compared.' } };
+    }
+    splitLines.push(lines);
+  }
+  var sides = [];
+  for (i = 0; i < 2; i++) {
+    var rows = splitLines[i];
+    var stats = { inputLines: rows.length, blankLines: 0, validRows: 0, uniqueValues: 0, duplicateExtraRows: 0 };
+    var map = new Map();
+    for (var n = 0; n < rows.length; n++) {
+      var raw = rows[n];
+      if (BLANK_LINE_PATTERN.test(raw)) {
+        stats.blankLines++;
+        continue;
+      }
+      stats.validRows++;
+      var normalized = trim ? raw.replace(TRIM_PATTERN, '') : raw;
+      var key = caseSensitive ? normalized : foldAsciiLower(normalized);
+      var entry = map.get(key);
+      if (!entry) {
+        entry = { key: key, count: 0, records: [] };
+        map.set(key, entry);
+      }
+      entry.count++;
+      entry.records.push({ line: n + 1, raw: raw, normalized: normalized });
+    }
+    stats.uniqueValues = map.size;
+    stats.duplicateExtraRows = stats.validRows - stats.uniqueValues;
+    sides.push({ stats: stats, map: map });
+  }
+  var leftMap = sides[0].map;
+  var rightMap = sides[1].map;
+  var leftOnly = [];
+  var rightOnly = [];
+  var common = [];
+  var matchedRightKeys = new Map();
+  leftMap.forEach(function (entry) {
+    var rightEntry = rightMap.get(entry.key);
+    if (rightEntry) {
+      matchedRightKeys.set(entry.key, true);
+      common.push({
+        key: entry.key,
+        left: { count: entry.count, records: entry.records },
+        right: { count: rightEntry.count, records: rightEntry.records }
+      });
+    } else {
+      leftOnly.push({
+        key: entry.key,
+        left: { count: entry.count, records: entry.records },
+        right: { count: 0, records: [] }
+      });
+    }
+  });
+  rightMap.forEach(function (entry) {
+    if (!matchedRightKeys.has(entry.key)) {
+      rightOnly.push({
+        key: entry.key,
+        left: { count: 0, records: [] },
+        right: { count: entry.count, records: entry.records }
+      });
+    }
+  });
+  return {
+    rules: { trim: trim, caseSensitive: caseSensitive, texts: RULE_TEXTS },
+    leftStats: sides[0].stats,
+    rightStats: sides[1].stats,
+    leftOnly: leftOnly,
+    rightOnly: rightOnly,
+    common: common
+  };
+}
+
+function quoteRaw(s) {
+  return JSON.stringify(s);
+}
+
+function statsTuple(s) {
+  return s.inputLines + ' / ' + s.blankLines + ' / ' + s.validRows + ' / ' + s.uniqueValues + ' / ' + s.duplicateExtraRows;
+}
+
+function sideRefs(side) {
+  if (side.count === 0) {
+    return '(none)';
+  }
+  var parts = [];
+  for (var i = 0; i < side.records.length; i++) {
+    var rec = side.records[i];
+    parts.push('line ' + rec.line + ' raw ' + quoteRaw(rec.raw));
+  }
+  return parts.join('; ');
+}
+
+function pushTransferGroup(lines, title, items) {
+  lines.push(title);
+  if (items.length === 0) {
+    lines.push('  None');
+    lines.push('');
+    return;
+  }
+  for (var i = 0; i < items.length; i++) {
+    var item = items[i];
+    lines.push('  ' + (i + 1) + '. ' + quoteRaw(item.key));
+    lines.push('     left count ' + item.left.count + ': ' + sideRefs(item.left));
+    lines.push('     right count ' + item.right.count + ': ' + sideRefs(item.right));
+  }
+  lines.push('');
+}
+
+function formatTransfer(model) {
+  var r = model.rules;
+  var lines = [];
+  lines.push('List comparison handoff');
+  lines.push('Tool: list-compare-v1 (string comparison only)');
+  lines.push('');
+  lines.push('Rules used for this run:');
+  lines.push('- ' + r.texts.trim);
+  lines.push('- ' + r.texts.casef);
+  lines.push('- ' + r.texts.input);
+  lines.push('- ' + r.texts.splitting);
+  lines.push('- ' + r.texts.blanks);
+  lines.push('- ' + r.texts.dupes);
+  lines.push('- ' + r.texts.zeros);
+  lines.push('- ' + r.texts.order);
+  lines.push('- ' + r.texts.limits);
+  lines.push('- ' + r.texts.identity);
+  lines.push('');
+  lines.push('Counts (inputLines / blankLines / validRows / uniqueValues / duplicateExtraRows):');
+  lines.push('- Left: ' + statsTuple(model.leftStats));
+  lines.push('- Right: ' + statsTuple(model.rightStats));
+  lines.push('');
+  pushTransferGroup(lines, 'Common items (left first-seen order): ' + model.common.length, model.common);
+  pushTransferGroup(lines, 'Only in left list (left first-seen order): ' + model.leftOnly.length, model.leftOnly);
+  pushTransferGroup(lines, 'Only in right list (right first-seen order): ' + model.rightOnly.length, model.rightOnly);
+  lines.push('Limitations: ' + r.texts.identity + ' ' + r.texts.privacy);
+  return lines.join('\n');
+}
+</script>
+
+<script id="acceptance-tests">
+/* acceptance-tests: runs the production core against pre-declared expected values. No DOM. */
+function deepEqual(a, b) {
+  if (a === b) {
+    return true;
+  }
+  if (typeof a !== typeof b || a === null || b === null) {
+    return false;
+  }
+  if (Array.isArray(a)) {
+    if (!Array.isArray(b) || a.length !== b.length) {
+      return false;
+    }
+    for (var i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], b[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (typeof a === 'object') {
+    var ka = Object.keys(a).sort();
+    var kb = Object.keys(b).sort();
+    if (!deepEqual(ka, kb)) {
+      return false;
+    }
+    for (var j = 0; j < ka.length; j++) {
+      if (!deepEqual(a[ka[j]], b[ka[j]])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+function cloneJson(x) {
+  return JSON.parse(JSON.stringify(x));
+}
+
+function expandFixtureInput(fx, side) {
+  var desc = side === 'left' ? fx.leftRepeat : fx.rightRepeat;
+  if (desc) {
+    var out = '';
+    for (var i = 0; i < desc.times; i++) {
+      out += desc.unit;
+    }
+    return out;
+  }
+  return fx[side];
+}
+
+function buildExpected(fx, ruleTexts) {
+  var exp = cloneJson(fx.expected);
+  if (exp && exp.rules && exp.rules.texts === '@RULE_TEXTS') {
+    exp.rules.texts = cloneJson(ruleTexts);
+  }
+  return exp;
+}
+
+function pushAssertion(assertions, name, expected, actual, pass) {
+  assertions.push({
+    name: name,
+    expected: typeof expected === 'string' ? expected : JSON.stringify(expected),
+    actual: typeof actual === 'string' ? actual : JSON.stringify(actual),
+    pass: !!pass
+  });
+}
+
+function collectKeys(items) {
+  var keys = [];
+  for (var i = 0; i < items.length; i++) {
+    keys.push(items[i].key);
+  }
+  return keys;
+}
+
+function pushInvariantAssertions(assertions, model) {
+  var ls = model.leftStats;
+  var rs = model.rightStats;
+  pushAssertion(assertions, 'left validRows = inputLines - blankLines', String(ls.inputLines - ls.blankLines), String(ls.validRows), ls.validRows === ls.inputLines - ls.blankLines);
+  pushAssertion(assertions, 'left duplicateExtraRows = validRows - uniqueValues', String(ls.validRows - ls.uniqueValues), String(ls.duplicateExtraRows), ls.duplicateExtraRows === ls.validRows - ls.uniqueValues);
+  pushAssertion(assertions, 'right validRows = inputLines - blankLines', String(rs.inputLines - rs.blankLines), String(rs.validRows), rs.validRows === rs.inputLines - rs.blankLines);
+  pushAssertion(assertions, 'right duplicateExtraRows = validRows - uniqueValues', String(rs.validRows - rs.uniqueValues), String(rs.duplicateExtraRows), rs.duplicateExtraRows === rs.validRows - rs.uniqueValues);
+  var commonKeys = collectKeys(model.common);
+  var leftKeys = collectKeys(model.leftOnly);
+  var rightKeys = collectKeys(model.rightOnly);
+  var disjoint = true;
+  var all = [];
+  var groups = [commonKeys, leftKeys, rightKeys];
+  for (var g = 0; g < groups.length; g++) {
+    for (var i = 0; i < groups[g].length; i++) {
+      if (all.indexOf(groups[g][i]) >= 0) {
+        disjoint = false;
+      }
+      all.push(groups[g][i]);
+    }
+  }
+  pushAssertion(assertions, 'the three groups have disjoint keys', 'no key in two groups', disjoint ? 'disjoint' : 'overlap found', disjoint);
+  var leftUnion = commonKeys.concat(leftKeys);
+  var rightUnion = commonKeys.concat(rightKeys);
+  pushAssertion(assertions, 'common + left-only covers every left unique value', String(ls.uniqueValues), String(leftUnion.length), leftUnion.length === ls.uniqueValues);
+  pushAssertion(assertions, 'common + right-only covers every right unique value', String(rs.uniqueValues), String(rightUnion.length), rightUnion.length === rs.uniqueValues);
+  var countsOk = true;
+  var groupsAll = [model.common, model.leftOnly, model.rightOnly];
+  for (var k = 0; k < groupsAll.length; k++) {
+    for (var m = 0; m < groupsAll[k].length; m++) {
+      var item = groupsAll[k][m];
+      if (item.left.records.length !== item.left.count || item.right.records.length !== item.right.count) {
+        countsOk = false;
+      }
+    }
+  }
+  pushAssertion(assertions, 'every item keeps one record per occurrence', 'records.length equals count on both sides', countsOk ? 'all equal' : 'mismatch found', countsOk);
+}
+
+function pushTransferAssertions(assertions, model, fx) {
+  var text = formatTransfer(model);
+  if (fx.id === 'F1') {
+    pushAssertion(assertions, 'transfer shows both left SKU-A raw lines with trailing space', 'left count 2: line 1 raw "SKU-A "; line 3 raw "SKU-A "', text.indexOf('left count 2: line 1 raw "SKU-A "; line 3 raw "SKU-A "') >= 0 ? 'found' : 'missing', text.indexOf('left count 2: line 1 raw "SKU-A "; line 3 raw "SKU-A "') >= 0);
+    pushAssertion(assertions, 'transfer shows the right SKU-A source line', 'right count 1: line 2 raw "SKU-A"', text.indexOf('right count 1: line 2 raw "SKU-A"') >= 0 ? 'found' : 'missing', text.indexOf('right count 1: line 2 raw "SKU-A"') >= 0);
+    pushAssertion(assertions, 'transfer keeps 001 and 1 as separate items', 'both "  2. \\"001\\"" and "  2. \\"1\\"" present', (text.indexOf('  2. "001"') >= 0 && text.indexOf('  2. "1"') >= 0) ? 'both found' : 'missing', text.indexOf('  2. "001"') >= 0 && text.indexOf('  2. "1"') >= 0);
+    pushAssertion(assertions, 'transfer shows trailing space inside JSON-style quotes', 'raw "SKU-A " with a space before the closing quote', text.indexOf('raw "SKU-A "') >= 0 ? 'found' : 'missing', text.indexOf('raw "SKU-A "') >= 0);
+    pushAssertion(assertions, 'transfer states the trim switch used', 'Trim ASCII spaces/tabs at both ends: ON', text.indexOf('Trim ASCII spaces/tabs at both ends: ON') >= 0 ? 'found' : 'missing', text.indexOf('Trim ASCII spaces/tabs at both ends: ON') >= 0);
+    pushAssertion(assertions, 'transfer states the case switch used', 'Case-sensitive: ON', text.indexOf('Case-sensitive: ON') >= 0 ? 'found' : 'missing', text.indexOf('Case-sensitive: ON') >= 0);
+    pushAssertion(assertions, 'transfer carries the identity limitation', 'not the same person, customer, or product', text.indexOf('not the same person, customer, or product') >= 0 ? 'found' : 'missing', text.indexOf('not the same person, customer, or product') >= 0);
+    pushAssertion(assertions, 'transfer carries the Unicode limitation', 'no general Unicode case folding or Unicode normalization', text.indexOf('no general Unicode case folding or Unicode normalization') >= 0 ? 'found' : 'missing', text.indexOf('no general Unicode case folding or Unicode normalization') >= 0);
+    pushAssertion(assertions, 'transfer carries both side counts', 'Left: 5 / 1 / 4 / 3 / 1 and Right: 3 / 0 / 3 / 3 / 0', (text.indexOf('Left: 5 / 1 / 4 / 3 / 1') >= 0 && text.indexOf('Right: 3 / 0 / 3 / 3 / 0') >= 0) ? 'both found' : 'missing', (text.indexOf('Left: 5 / 1 / 4 / 3 / 1') >= 0 && text.indexOf('Right: 3 / 0 / 3 / 3 / 0') >= 0));
+  }
+  if (fx.id === 'F4' || fx.id === 'F6') {
+    var expectedCase = fx.options.caseSensitive ? 'ON' : 'OFF';
+    var expectedTrim = fx.options.trim ? 'ON' : 'OFF';
+    pushAssertion(assertions, 'transfer rule values follow the options of this run', 'Trim ASCII spaces/tabs at both ends: ' + expectedTrim + ' and Case-sensitive: ' + expectedCase, (text.indexOf('Trim ASCII spaces/tabs at both ends: ' + expectedTrim) >= 0 && text.indexOf('Case-sensitive: ' + expectedCase) >= 0) ? 'both found' : 'missing', (text.indexOf('Trim ASCII spaces/tabs at both ends: ' + expectedTrim) >= 0 && text.indexOf('Case-sensitive: ' + expectedCase) >= 0));
+  }
+}
+
+function runOneCase(fx, ruleTexts) {
+  var assertions = [];
+  var expected = buildExpected(fx, ruleTexts);
+  var leftText = expandFixtureInput(fx, 'left');
+  var rightText = expandFixtureInput(fx, 'right');
+  var model = null;
+  var thrown = null;
+  try {
+    model = compareLists(leftText, rightText, fx.options);
+  } catch (e) {
+    thrown = String(e);
+  }
+  var actual;
+  if (expected && expected.expectedError) {
+    actual = (model && model.error) ? { expectedError: model.error.code } : { unexpected: 'no error returned', thrown: thrown };
+    pushAssertion(assertions, 'error code equals the pre-declared expectedError', expected.expectedError, actual.expectedError || String(actual.unexpected), !!model && !!model.error && model.error.code === expected.expectedError);
+    pushAssertion(assertions, 'no normal result groups are returned with the error', 'undefined leftOnly/rightOnly/common', (model && model.error && model.leftOnly === undefined && model.rightOnly === undefined && model.common === undefined) ? 'all undefined' : 'normal groups present', !!model && !!model.error && model.leftOnly === undefined && model.rightOnly === undefined && model.common === undefined);
+  } else if (thrown !== null || !model || model.error) {
+    actual = { thrown: thrown, error: model && model.error ? model.error : null };
+    pushAssertion(assertions, 'comparison completed without error', 'model without error', JSON.stringify(actual), false);
+  } else {
+    actual = model;
+    pushAssertion(assertions, 'core rule texts equal the pre-declared rule texts', JSON.stringify(ruleTexts), JSON.stringify(RULE_TEXTS), deepEqual(RULE_TEXTS, ruleTexts));
+    pushAssertion(assertions, 'rules object matches the pre-declared rules', JSON.stringify(expected.rules), JSON.stringify(model.rules), deepEqual(model.rules, expected.rules));
+    pushAssertion(assertions, 'left stats tuple matches', JSON.stringify(expected.leftStats), JSON.stringify(model.leftStats), deepEqual(model.leftStats, expected.leftStats));
+    pushAssertion(assertions, 'right stats tuple matches', JSON.stringify(expected.rightStats), JSON.stringify(model.rightStats), deepEqual(model.rightStats, expected.rightStats));
+    pushAssertion(assertions, 'common group matches in order, counts, and records', JSON.stringify(expected.common), JSON.stringify(model.common), deepEqual(model.common, expected.common));
+    pushAssertion(assertions, 'left-only group matches in order, counts, and records', JSON.stringify(expected.leftOnly), JSON.stringify(model.leftOnly), deepEqual(model.leftOnly, expected.leftOnly));
+    pushAssertion(assertions, 'right-only group matches in order, counts, and records', JSON.stringify(expected.rightOnly), JSON.stringify(model.rightOnly), deepEqual(model.rightOnly, expected.rightOnly));
+    pushInvariantAssertions(assertions, model);
+    pushTransferAssertions(assertions, model, fx);
+  }
+  var pass = assertions.length > 0;
+  for (var i = 0; i < assertions.length; i++) {
+    if (!assertions[i].pass) {
+      pass = false;
+    }
+  }
+  return { id: fx.id, expected: expected, actual: actual, pass: pass, assertions: assertions };
+}
+
+function runAcceptanceTests(fixtures) {
+  var cases = Array.isArray(fixtures) ? fixtures : fixtures.cases;
+  var ruleTexts = Array.isArray(fixtures) ? RULE_TEXTS : fixtures.ruleTexts;
+  var report = { schemaVersion: 1, passed: true, cases: [] };
+  for (var i = 0; i < cases.length; i++) {
+    var caseReport = runOneCase(cases[i], ruleTexts);
+    if (!caseReport.pass) {
+      report.passed = false;
+    }
+    report.cases.push(caseReport);
+  }
+  return report;
+}
+</script>
+
+<script id="compare-ui">
+/* compare-ui: real DOM wiring, DOM integration checks, public check display. No network, no storage. */
+function mkNode(doc, tag, attrs, text) {
+  var node = doc.createElement(tag);
+  if (attrs) {
+    for (var k in attrs) {
+      if (k === 'className') {
+        node.className = attrs[k];
+      } else {
+        node.setAttribute(k, attrs[k]);
+      }
+    }
+  }
+  if (text !== undefined && text !== null) {
+    node.textContent = String(text);
+  }
+  return node;
+}
+
+function statsLine(s) {
+  return 'input lines ' + s.inputLines + ', blank lines ' + s.blankLines + ', valid non-blank rows ' + s.validRows + ', unique values ' + s.uniqueValues + ', duplicate extra rows ' + s.duplicateExtraRows;
+}
+
+function refsLine(side) {
+  if (side.count === 0) {
+    return '(none)';
+  }
+  var parts = [];
+  for (var i = 0; i < side.records.length; i++) {
+    var r = side.records[i];
+    parts.push('line ' + r.line + ' raw ' + JSON.stringify(r.raw));
+  }
+  return parts.join('; ');
+}
+
+function createComparisonApp(root, deps) {
+  var doc = root.ownerDocument || document;
+  var template = doc.getElementById('app-template');
+  root.appendChild(template.content.cloneNode(true));
+  function q(name) {
+    return root.querySelector('[data-role="' + name + '"]');
+  }
+  var els = {
+    leftInput: q('left-input'),
+    rightInput: q('right-input'),
+    trimOption: q('trim-option'),
+    caseOption: q('case-option'),
+    compareButton: q('compare-button'),
+    loadExampleButton: q('load-example-button'),
+    clearButton: q('clear-button'),
+    status: q('status'),
+    leftStats: q('left-stats'),
+    rightStats: q('right-stats'),
+    results: q('results'),
+    groupCommon: q('group-common'),
+    groupLeftOnly: q('group-left-only'),
+    groupRightOnly: q('group-right-only'),
+    handoff: q('handoff-text'),
+    copyButton: q('copy-button'),
+    rulesList: q('rules-list'),
+    privacy: q('privacy')
+  };
+  var clipboard = (deps && deps.clipboard) ? deps.clipboard : navigator.clipboard;
+  var state = { model: null };
+  var ruleOrder = ['input', 'splitting', 'blanks', 'trim', 'casef', 'dupes', 'zeros', 'order', 'limits', 'identity'];
+  for (var ri = 0; ri < ruleOrder.length; ri++) {
+    els.rulesList.appendChild(mkNode(doc, 'li', null, RULE_TEXTS[ruleOrder[ri]]));
+  }
+  els.privacy.textContent = RULE_TEXTS.privacy;
+
+  function setStatus(text, kind) {
+    els.status.textContent = text;
+    els.status.className = 'status ' + (kind || '');
+  }
+
+  function renderGroup(title, items, container) {
+    container.textContent = '';
+    container.appendChild(mkNode(doc, 'h4', null, title + ' (' + items.length + ')'));
+    if (items.length === 0) {
+      container.appendChild(mkNode(doc, 'p', { className: 'none' }, 'None'));
+      return;
+    }
+    var list = mkNode(doc, 'ol', null);
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var li = mkNode(doc, 'li', null);
+      li.appendChild(mkNode(doc, 'span', { className: 'item-key' }, JSON.stringify(item.key)));
+      li.appendChild(mkNode(doc, 'div', { className: 'refs' }, 'left count ' + item.left.count + ': ' + refsLine(item.left)));
+      li.appendChild(mkNode(doc, 'div', { className: 'refs' }, 'right count ' + item.right.count + ': ' + refsLine(item.right)));
+      list.appendChild(li);
+    }
+    container.appendChild(list);
+  }
+
+  function renderResults(model) {
+    els.results.textContent = '';
+    if (!model) {
+      els.leftStats.textContent = '';
+      els.rightStats.textContent = '';
+      els.results.appendChild(mkNode(doc, 'p', { className: 'placeholder' }, 'No comparison result yet.'));
+      els.results.appendChild(mkNode(doc, 'section', { 'data-role': 'group-common' }));
+      els.results.appendChild(mkNode(doc, 'section', { 'data-role': 'group-left-only' }));
+      els.results.appendChild(mkNode(doc, 'section', { 'data-role': 'group-right-only' }));
+      els.groupCommon = els.results.querySelector('[data-role="group-common"]');
+      els.groupLeftOnly = els.results.querySelector('[data-role="group-left-only"]');
+      els.groupRightOnly = els.results.querySelector('[data-role="group-right-only"]');
+      return;
+    }
+    els.leftStats.textContent = 'Left: ' + statsLine(model.leftStats);
+    els.rightStats.textContent = 'Right: ' + statsLine(model.rightStats);
+    renderGroup('Common items', model.common, els.groupCommon);
+    renderGroup('Only in left list', model.leftOnly, els.groupLeftOnly);
+    renderGroup('Only in right list', model.rightOnly, els.groupRightOnly);
+  }
+
+  function markStale() {
+    state.model = null;
+    renderResults(null);
+    els.handoff.value = '';
+    els.copyButton.disabled = true;
+    setStatus('Inputs or rules changed. Compare again.', 'warn');
+  }
+
+  function doCompare() {
+    var model = compareLists(els.leftInput.value, els.rightInput.value, {
+      trim: els.trimOption.checked,
+      caseSensitive: els.caseOption.checked
+    });
+    if (model.error) {
+      state.model = null;
+      renderResults(null);
+      els.handoff.value = '';
+      els.copyButton.disabled = true;
+      setStatus(model.error.code + ': ' + model.error.message, 'error');
+      return;
+    }
+    state.model = model;
+    renderResults(model);
+    els.handoff.value = formatTransfer(model);
+    els.copyButton.disabled = false;
+    setStatus('Compared under the rules shown above. The handoff text is editable before copying.', 'ok');
+  }
+
+  function fixtureById(id) {
+    var node = doc.getElementById('acceptance-fixtures');
+    var data = JSON.parse(node.textContent);
+    var cases = Array.isArray(data) ? data : data.cases;
+    for (var i = 0; i < cases.length; i++) {
+      if (cases[i].id === id) {
+        return cases[i];
+      }
+    }
+    return null;
+  }
+
+  function doLoadExample() {
+    var f1 = fixtureById('F1');
+    els.leftInput.value = f1.left;
+    els.rightInput.value = f1.right;
+    els.trimOption.checked = true;
+    els.caseOption.checked = true;
+    state.model = null;
+    renderResults(null);
+    els.handoff.value = '';
+    els.copyButton.disabled = true;
+    setStatus('Synthetic example F1 loaded into the inputs (synthetic data, not a real list). It is not compared yet.', 'warn');
+  }
+
+  function doClear() {
+    els.leftInput.value = '';
+    els.rightInput.value = '';
+    state.model = null;
+    renderResults(null);
+    els.handoff.value = '';
+    els.copyButton.disabled = true;
+    setStatus('Cleared. This tool keeps nothing.', 'ok');
+  }
+
+  function selectHandoff() {
+    els.handoff.focus();
+    els.handoff.select();
+  }
+
+  function doCopy() {
+    var text = els.handoff.value;
+    if (!clipboard || !clipboard.writeText) {
+      selectHandoff();
+      setStatus('Clipboard access is unavailable here. The handoff text is selected - use Ctrl/Cmd+C.', 'warn');
+      return;
+    }
+    var pending = clipboard.writeText(text);
+    if (pending && pending.then) {
+      pending.then(function () {
+        setStatus('Handoff text copied to the clipboard.', 'ok');
+      }, function () {
+        selectHandoff();
+        setStatus('Clipboard write was refused. The handoff text is selected - use Ctrl/Cmd+C.', 'warn');
+      });
+    } else {
+      setStatus('Handoff text copied to the clipboard.', 'ok');
+    }
+  }
+
+  function setControlsEnabled(enabled) {
+    els.compareButton.disabled = !enabled;
+    els.loadExampleButton.disabled = !enabled;
+    els.clearButton.disabled = !enabled;
+    if (!enabled) {
+      els.copyButton.disabled = true;
+    }
+  }
+
+  els.leftInput.addEventListener('input', markStale);
+  els.rightInput.addEventListener('input', markStale);
+  els.trimOption.addEventListener('change', markStale);
+  els.caseOption.addEventListener('change', markStale);
+  els.compareButton.addEventListener('click', doCompare);
+  els.loadExampleButton.addEventListener('click', doLoadExample);
+  els.clearButton.addEventListener('click', doClear);
+  els.copyButton.addEventListener('click', doCopy);
+
+  renderResults(null);
+  setStatus('Load or type two lists, then compare. Nothing is uploaded or saved.', 'ok');
+
+  return {
+    elements: els,
+    compare: doCompare,
+    clear: doClear,
+    loadExample: doLoadExample,
+    copy: doCopy,
+    setControlsEnabled: setControlsEnabled
+  };
+}
+
+function runDomTests(fixtures) {
+  var cases = Array.isArray(fixtures) ? fixtures : fixtures.cases;
+  var byId = {};
+  for (var ci = 0; ci < cases.length; ci++) {
+    byId[cases[ci].id] = cases[ci];
+  }
+  var report = { schemaVersion: 1, passed: true, cases: [] };
+
+  function push(assertions, name, expected, actual, pass) {
+    assertions.push({ name: name, expected: String(expected), actual: String(actual), pass: !!pass });
+  }
+
+  function addCase(id, body) {
+    var assertions = [];
+    try {
+      body(assertions);
+    } catch (e) {
+      push(assertions, 'test body ran without throwing', 'no exception', String(e), false);
+    }
+    var pass = assertions.length > 0;
+    for (var i = 0; i < assertions.length; i++) {
+      if (!assertions[i].pass) {
+        pass = false;
+      }
+    }
+    if (!pass) {
+      report.passed = false;
+    }
+    report.cases.push({
+      id: id,
+      expected: 'all listed DOM assertions hold',
+      actual: pass ? 'all held' : 'at least one assertion failed',
+      pass: pass,
+      assertions: assertions
+    });
+  }
+
+  function withApp(body) {
+    var container = document.createElement('div');
+    document.body.appendChild(container);
+    var capture = { text: null, writes: 0 };
+    var fakeClipboard = {
+      writeText: function (text) {
+        capture.text = text;
+        capture.writes = capture.writes + 1;
+        return { then: function (ok) { if (ok) { ok(); return this; } return this; } };
+      }
+    };
+    try {
+      var app = createComparisonApp(container, { clipboard: fakeClipboard });
+      body(app, app.elements, capture);
+    } finally {
+      document.body.removeChild(container);
+    }
+  }
+
+  function setInput(textarea, value) {
+    textarea.value = value;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function setCheckbox(box, checked) {
+    box.checked = checked;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function keysOf(container) {
+    var nodes = container.querySelectorAll('.item-key');
+    var out = [];
+    for (var i = 0; i < nodes.length; i++) {
+      out.push(nodes[i].textContent);
+    }
+    return out.join(', ');
+  }
+
+  addCase('D1-F1-rendered-dom', function (assertions) {
+    withApp(function (app, els) {
+      var f1 = byId.F1;
+      setInput(els.leftInput, f1.left);
+      setInput(els.rightInput, f1.right);
+      setCheckbox(els.trimOption, true);
+      setCheckbox(els.caseOption, true);
+      els.compareButton.click();
+      push(assertions, 'left stats line rendered in the DOM', 'Left: input lines 5, blank lines 1, valid non-blank rows 4, unique values 3, duplicate extra rows 1', els.leftStats.textContent, els.leftStats.textContent === 'Left: input lines 5, blank lines 1, valid non-blank rows 4, unique values 3, duplicate extra rows 1');
+      push(assertions, 'right stats line rendered in the DOM', 'Right: input lines 3, blank lines 0, valid non-blank rows 3, unique values 3, duplicate extra rows 0', els.rightStats.textContent, els.rightStats.textContent === 'Right: input lines 3, blank lines 0, valid non-blank rows 3, unique values 3, duplicate extra rows 0');
+      push(assertions, 'common group keys in left first-seen order', '"SKU-A"', keysOf(els.groupCommon), keysOf(els.groupCommon) === '"SKU-A"');
+      push(assertions, 'left-only group keys in left first-seen order', '"001", "x"', keysOf(els.groupLeftOnly), keysOf(els.groupLeftOnly) === '"001", "x"');
+      push(assertions, 'right-only group keys in right first-seen order', '"y", "1"', keysOf(els.groupRightOnly), keysOf(els.groupRightOnly) === '"y", "1"');
+      var res = els.results.textContent;
+      push(assertions, 'both SKU-A left line numbers with visible trailing space', 'line 1 raw "SKU-A " and line 3 raw "SKU-A "', (res.indexOf('line 1 raw "SKU-A "') >= 0 && res.indexOf('line 3 raw "SKU-A "') >= 0) ? 'both found' : 'missing', res.indexOf('line 1 raw "SKU-A "') >= 0 && res.indexOf('line 3 raw "SKU-A "') >= 0);
+      push(assertions, 'right SKU-A source line shown', 'line 2 raw "SKU-A"', res.indexOf('line 2 raw "SKU-A"') >= 0 ? 'found' : 'missing', res.indexOf('line 2 raw "SKU-A"') >= 0);
+      var hv = els.handoff.value;
+      push(assertions, 'handoff textarea filled with rules and groups', 'contains Rules used for this run and Only in right list (right first-seen order): 2', (hv.indexOf('Rules used for this run:') >= 0 && hv.indexOf('Only in right list (right first-seen order): 2') >= 0) ? 'both found' : 'missing', hv.indexOf('Rules used for this run:') >= 0 && hv.indexOf('Only in right list (right first-seen order): 2') >= 0);
+      push(assertions, 'handoff keeps 001 and 1 apart', 'both "  2. \\"001\\"" and "  2. \\"1\\"" present', (hv.indexOf('  2. "001"') >= 0 && hv.indexOf('  2. "1"') >= 0) ? 'both found' : 'missing', hv.indexOf('  2. "001"') >= 0 && hv.indexOf('  2. "1"') >= 0);
+      push(assertions, 'copy button enabled after a successful compare', 'false', String(els.copyButton.disabled), els.copyButton.disabled === false);
+    });
+  });
+
+  addCase('D2-stale-on-edit', function (assertions) {
+    withApp(function (app, els) {
+      var f1 = byId.F1;
+      setInput(els.leftInput, f1.left);
+      setInput(els.rightInput, f1.right);
+      els.compareButton.click();
+      setInput(els.leftInput, f1.left + '\nzzz');
+      push(assertions, 'copy disabled right after an input change', 'true', String(els.copyButton.disabled), els.copyButton.disabled === true);
+      push(assertions, 'old handoff text cleared right after an input change', '', els.handoff.value, els.handoff.value === '');
+      push(assertions, 'stale hint shown', 'Inputs or rules changed. Compare again.', els.status.textContent, els.status.textContent === 'Inputs or rules changed. Compare again.');
+      els.compareButton.click();
+      push(assertions, 're-compare recomputes the left stats from the current input', 'Left: input lines 6, blank lines 1, valid non-blank rows 5, unique values 4, duplicate extra rows 1', els.leftStats.textContent, els.leftStats.textContent === 'Left: input lines 6, blank lines 1, valid non-blank rows 5, unique values 4, duplicate extra rows 1');
+      push(assertions, 'copy enabled again after re-compare', 'false', String(els.copyButton.disabled), els.copyButton.disabled === false);
+    });
+  });
+
+  addCase('D3-F3-to-F4-case-toggle', function (assertions) {
+    withApp(function (app, els) {
+      var f3 = byId.F3;
+      setInput(els.leftInput, f3.left);
+      setInput(els.rightInput, f3.right);
+      setCheckbox(els.trimOption, true);
+      setCheckbox(els.caseOption, true);
+      els.compareButton.click();
+      push(assertions, 'F3 common keys rendered', '"A"', keysOf(els.groupCommon), keysOf(els.groupCommon) === '"A"');
+      setCheckbox(els.caseOption, false);
+      push(assertions, 'rule change marks the old result stale', 'Inputs or rules changed. Compare again.', els.status.textContent, els.status.textContent === 'Inputs or rules changed. Compare again.');
+      push(assertions, 'rule change disables copy', 'true', String(els.copyButton.disabled), els.copyButton.disabled === true);
+      els.compareButton.click();
+      push(assertions, 'F4 common keys rendered after re-compare', '"a", "x"', keysOf(els.groupCommon), keysOf(els.groupCommon) === '"a", "x"');
+      push(assertions, 'F4 both only-groups show None', 'None in both', (els.groupLeftOnly.textContent.indexOf('None') >= 0 && els.groupRightOnly.textContent.indexOf('None') >= 0) ? 'None in both' : 'missing', els.groupLeftOnly.textContent.indexOf('None') >= 0 && els.groupRightOnly.textContent.indexOf('None') >= 0);
+      push(assertions, 'raw uppercase text preserved in the rendered records', 'contains raw "A"', els.results.textContent.indexOf('raw "A"') >= 0 ? 'found' : 'missing', els.results.textContent.indexOf('raw "A"') >= 0);
+      push(assertions, 'handoff rule value flipped with the option', 'Case-sensitive: OFF', els.handoff.value.indexOf('Case-sensitive: OFF') >= 0 ? 'found' : 'missing', els.handoff.value.indexOf('Case-sensitive: OFF') >= 0);
+    });
+  });
+
+  addCase('D4-F5-to-F6-trim-toggle', function (assertions) {
+    withApp(function (app, els) {
+      var f5 = byId.F5;
+      setInput(els.leftInput, f5.left);
+      setInput(els.rightInput, f5.right);
+      setCheckbox(els.trimOption, true);
+      setCheckbox(els.caseOption, true);
+      els.compareButton.click();
+      push(assertions, 'F5 common keys rendered', '"A"', keysOf(els.groupCommon), keysOf(els.groupCommon) === '"A"');
+      setCheckbox(els.trimOption, false);
+      els.compareButton.click();
+      push(assertions, 'F6 common keys rendered after trim off', '" A ", "A"', keysOf(els.groupCommon), keysOf(els.groupCommon) === '" A ", "A"');
+      push(assertions, 'handoff trim value flipped with the option', 'Trim ASCII spaces/tabs at both ends: OFF', els.handoff.value.indexOf('Trim ASCII spaces/tabs at both ends: OFF') >= 0 ? 'found' : 'missing', els.handoff.value.indexOf('Trim ASCII spaces/tabs at both ends: OFF') >= 0);
+    });
+  });
+
+  addCase('D5-handoff-editable-copy-uses-current-value', function (assertions) {
+    withApp(function (app, els, capture) {
+      var f1 = byId.F1;
+      setInput(els.leftInput, f1.left);
+      setInput(els.rightInput, f1.right);
+      els.compareButton.click();
+      var original = els.handoff.value;
+      els.handoff.value = 'edited handoff by tester';
+      els.handoff.dispatchEvent(new Event('input', { bubbles: true }));
+      push(assertions, 'handoff textarea is editable and its value changes', 'edited handoff by tester', els.handoff.value, els.handoff.value === 'edited handoff by tester' && els.handoff.value !== original);
+      els.copyButton.click();
+      push(assertions, 'copy handler reads the current textarea value', 'edited handoff by tester', String(capture.text), capture.text === 'edited handoff by tester');
+      push(assertions, 'self-check used the injected clipboard stub, not the system clipboard', '1 stub write', capture.writes + ' stub write', capture.writes === 1);
+    });
+  });
+
+  addCase('D6-F9-no-html-injection', function (assertions) {
+    withApp(function (app, els) {
+      var f9 = byId.F9;
+      setInput(els.leftInput, f9.left);
+      setInput(els.rightInput, f9.right);
+      els.compareButton.click();
+      var injected = els.results.querySelectorAll('img, script, iframe').length;
+      push(assertions, 'no img/script/iframe element created from list content', '0', String(injected), injected === 0);
+      push(assertions, 'literal markup string shown as text', 'contains \u003cimg src=x onerror=alert(1)>', els.results.textContent.indexOf('\u003cimg src=x onerror=alert(1)>') >= 0 ? 'found' : 'missing', els.results.textContent.indexOf('\u003cimg src=x onerror=alert(1)>') >= 0);
+      push(assertions, 'prototype key handled as an ordinary value', 'contains "__proto__"', els.results.textContent.indexOf('"__proto__"') >= 0 ? 'found' : 'missing', els.results.textContent.indexOf('"__proto__"') >= 0);
+    });
+  });
+
+  addCase('D7-limits-clear-old-results', function (assertions) {
+    withApp(function (app, els) {
+      var f1 = byId.F1;
+      var f10 = byId.F10;
+      var f11 = byId.F11;
+      setInput(els.leftInput, f1.left);
+      setInput(els.rightInput, f1.right);
+      els.compareButton.click();
+      setInput(els.leftInput, expandFixtureInput(f10, 'left'));
+      els.compareButton.click();
+      push(assertions, 'F10 shows the pre-declared error code', 'status starts with INPUT_TOO_LONG:', els.status.textContent.slice(0, 20), els.status.textContent.indexOf('INPUT_TOO_LONG:') === 0);
+      push(assertions, 'F10 clears the old result area', 'No comparison result yet.', els.results.textContent, els.results.textContent === 'No comparison result yet.');
+      push(assertions, 'F10 clears the old handoff and disables copy', 'empty handoff and disabled copy', 'handoff length ' + els.handoff.value.length + ', copy disabled ' + String(els.copyButton.disabled), els.handoff.value === '' && els.copyButton.disabled === true);
+      setInput(els.leftInput, expandFixtureInput(f11, 'left'));
+      els.compareButton.click();
+      push(assertions, 'F11 shows the pre-declared error code', 'status starts with TOO_MANY_LINES:', els.status.textContent.slice(0, 20), els.status.textContent.indexOf('TOO_MANY_LINES:') === 0);
+      push(assertions, 'F11 keeps the result area clear', 'No comparison result yet.', els.results.textContent, els.results.textContent === 'No comparison result yet.');
+    });
+  });
+
+  addCase('D8-clear', function (assertions) {
+    withApp(function (app, els) {
+      var f1 = byId.F1;
+      setInput(els.leftInput, f1.left);
+      setInput(els.rightInput, f1.right);
+      els.compareButton.click();
+      els.clearButton.click();
+      push(assertions, 'clear empties both inputs', '|', els.leftInput.value + '|' + els.rightInput.value, els.leftInput.value === '' && els.rightInput.value === '');
+      push(assertions, 'clear resets the result area', 'No comparison result yet.', els.results.textContent, els.results.textContent === 'No comparison result yet.');
+      push(assertions, 'clear empties the handoff text', '', els.handoff.value, els.handoff.value === '');
+      push(assertions, 'clear disables copy', 'true', String(els.copyButton.disabled), els.copyButton.disabled === true);
+    });
+  });
+
+  return report;
+}
+
+function showValue(v) {
+  return typeof v === 'string' ? v : JSON.stringify(v);
+}
+
+function renderReport(container, report) {
+  container.textContent = '';
+  container.appendChild(mkNode(document, 'p', { className: report.passed ? 'pass' : 'fail' }, (report.passed ? 'PASS' : 'FAIL') + ' - ' + report.cases.length + ' cases'));
+  if (report.runnerError) {
+    container.appendChild(mkNode(document, 'p', { className: 'fail' }, 'Runner error: ' + report.runnerError));
+  }
+  for (var i = 0; i < report.cases.length; i++) {
+    var c = report.cases[i];
+    var det = mkNode(document, 'details', null);
+    det.appendChild(mkNode(document, 'summary', { className: c.pass ? 'pass' : 'fail' }, c.id + ' - ' + (c.pass ? 'PASS' : 'FAIL')));
+    det.appendChild(mkNode(document, 'pre', null, 'expected: ' + showValue(c.expected)));
+    det.appendChild(mkNode(document, 'pre', null, 'actual:   ' + showValue(c.actual)));
+    for (var a = 0; a < c.assertions.length; a++) {
+      var item = c.assertions[a];
+      det.appendChild(mkNode(document, 'p', { className: item.pass ? 'pass' : 'fail' }, (item.pass ? 'PASS' : 'FAIL') + ' - ' + item.name));
+      det.appendChild(mkNode(document, 'pre', null, 'expected: ' + showValue(item.expected)));
+      det.appendChild(mkNode(document, 'pre', null, 'actual:   ' + showValue(item.actual)));
+    }
+    container.appendChild(det);
+  }
+}
+
+function startPage() {
+  var gateStatus = document.getElementById('gate-status');
+  try {
+    var fixtures = JSON.parse(document.getElementById('acceptance-fixtures').textContent);
+    var appRoot = document.getElementById('app-root');
+    var app = createComparisonApp(appRoot);
+    app.setControlsEnabled(false);
+    var rerunButton = document.getElementById('rerun-checks');
+    function runAll() {
+      var coreReport;
+      var domReport;
+      try {
+        coreReport = runAcceptanceTests(fixtures);
+      } catch (e1) {
+        coreReport = { schemaVersion: 1, passed: false, cases: [], runnerError: String(e1) };
+      }
+      try {
+        domReport = runDomTests(fixtures);
+      } catch (e2) {
+        domReport = { schemaVersion: 1, passed: false, cases: [], runnerError: String(e2) };
+      }
+      renderReport(document.getElementById('core-report'), coreReport);
+      renderReport(document.getElementById('dom-report'), domReport);
+      var gate = coreReport.passed === true && domReport.passed === true;
+      app.setControlsEnabled(gate);
+      gateStatus.textContent = gate
+        ? 'All synthetic checks passed. The comparison controls below are enabled.'
+        : 'Some synthetic checks failed (see the reports above). The comparison controls stay disabled.';
+    }
+    rerunButton.addEventListener('click', runAll);
+    runAll();
+  } catch (e) {
+    gateStatus.textContent = 'Startup error: ' + String(e) + '. The comparison controls are unavailable.';
+  }
+}
+
+startPage();
+</script>
+</body>
+</html>
