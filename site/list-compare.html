@@ -41,21 +41,23 @@
   .fail { color: #a11212; font-weight: 600; }
   details { margin: 0.4rem 0; }
   summary { cursor: pointer; }
-  .gate { border: 1px solid #9aa3ad; padding: 0.5rem 0.7rem; background: #f6f8fa; }
+  .snapshot li { margin: 0.15rem 0; }
+  .fallbacknote { border: 1px solid #b8860b; background: #fff8e6; padding: 0.5rem 0.7rem; }
 </style>
 </head>
-<body data-product="list-compare-v2-final-lists" data-release="lc-20261018-final-lists-1">
+<body data-product="list-compare-v2-final-lists" data-release="lc-20261018-usable-decoupled-2">
 <h1>Compare two lists, then hand off a checkable result</h1>
 <p class="task-note">This page performs one task: it compares two plain multi-line lists of strings in this browser, delivers three copyable final lists (only in A, only in B, common to both) under explicit rules, and prepares an editable plain-text handoff you can take away. Whether this task is useful to anyone is an open question this page does not answer.</p>
+<noscript><p class="status error">This tool needs JavaScript to compare anything. Without JavaScript this page cannot run the comparison; the rules below describe what it would do, but no lists can be processed here.</p></noscript>
 
 <h2>Task workspace</h2>
 <div id="app-root"></div>
 
 <details class="acceptance" id="acceptance" data-role="acceptance">
-  <summary>Synthetic acceptance checks - expected vs actual (runs in this browser)</summary>
-  <p>These checks run in your browser on synthetic data that is declared before the implementation below. Every case shows the pre-declared expected value next to the actual value. These synthetic checks are not evidence of external use or demand. The same cases can be re-run without a browser from the downloadable file list-compare-checks.py.</p>
-  <p class="gate" id="gate-status" data-role="gate-status" aria-live="polite"></p>
-  <p><button type="button" id="rerun-checks" data-role="rerun-button">Run synthetic checks again</button></p>
+  <summary>Synthetic acceptance checks (optional diagnostics - they never gate the workspace above)</summary>
+  <p>These synthetic checks run only when you press the button below. They run in your browser on synthetic data that is declared before the implementation further down. Every case shows the pre-declared expected value next to the actual value. They never enable, disable, or otherwise change anything in the workspace above: the comparison tool works the same whether you run them or not. These synthetic checks are not evidence of external use or demand. The same cases can be re-run without a browser from the downloadable file list-compare-checks.py.</p>
+  <p id="diagnostic-status" data-role="diagnostic-status" aria-live="polite">Not run. Running them is optional and has no effect on the comparison tool above.</p>
+  <p><button type="button" id="run-checks" data-role="run-checks-button">Run synthetic checks</button></p>
   <h3>Production core checks (pure functions, no DOM)</h3>
   <div id="core-report" data-role="core-report"></div>
   <h3>Interface wiring checks (real DOM events on a temporary container)</h3>
@@ -559,6 +561,47 @@
         ],
         "transferUnknownCount": 4
       }
+    },
+    {
+      "id": "R1",
+      "note": "Pre-declared fidelity case: full-width digits stay distinct from ASCII, leading zeros and punctuation never merge, trailing spaces survive in raw values, Chinese originals are preserved. Expected values were fixed before the implementation was changed for this run.",
+      "left": "\uff10\uff10\uff11\n\u5f20\u4e09 \nA-B\n001\nSKU.X \n\u5f20\u4e09 \n",
+      "right": "\u5f20\u4e09\n1\nA B\n001\nSKU.X",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 7, "blankLines": 1, "validRows": 6, "uniqueValues": 5, "duplicateExtraRows": 1},
+        "rightStats": {"inputLines": 5, "blankLines": 0, "validRows": 5, "uniqueValues": 5, "duplicateExtraRows": 0},
+        "common": [
+          {"key": "\u5f20\u4e09", "left": {"count": 2, "records": [{"line": 2, "raw": "\u5f20\u4e09 ", "normalized": "\u5f20\u4e09"}, {"line": 6, "raw": "\u5f20\u4e09 ", "normalized": "\u5f20\u4e09"}]}, "right": {"count": 1, "records": [{"line": 1, "raw": "\u5f20\u4e09", "normalized": "\u5f20\u4e09"}]}},
+          {"key": "001", "left": {"count": 1, "records": [{"line": 4, "raw": "001", "normalized": "001"}]}, "right": {"count": 1, "records": [{"line": 4, "raw": "001", "normalized": "001"}]}},
+          {"key": "SKU.X", "left": {"count": 1, "records": [{"line": 5, "raw": "SKU.X ", "normalized": "SKU.X"}]}, "right": {"count": 1, "records": [{"line": 5, "raw": "SKU.X", "normalized": "SKU.X"}]}}
+        ],
+        "leftOnly": [
+          {"key": "\uff10\uff10\uff11", "left": {"count": 1, "records": [{"line": 1, "raw": "\uff10\uff10\uff11", "normalized": "\uff10\uff10\uff11"}]}, "right": {"count": 0, "records": []}},
+          {"key": "A-B", "left": {"count": 1, "records": [{"line": 3, "raw": "A-B", "normalized": "A-B"}]}, "right": {"count": 0, "records": []}}
+        ],
+        "rightOnly": [
+          {"key": "1", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 2, "raw": "1", "normalized": "1"}]}},
+          {"key": "A B", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 3, "raw": "A B", "normalized": "A B"}]}}
+        ],
+        "final": {"leftOnly": ["\uff10\uff10\uff11", "A-B"], "rightOnly": ["1", "A B"], "common": ["\u5f20\u4e09 ", "001", "SKU.X "]},
+        "transferContains": [
+          "comparison key: \"\u5f20\u4e09\"",
+          "representative raw value: \"\u5f20\u4e09 \"",
+          "A count 2: line 2 raw \"\u5f20\u4e09 \" normalized \"\u5f20\u4e09\"; line 6 raw \"\u5f20\u4e09 \" normalized \"\u5f20\u4e09\"",
+          "B count 1: line 1 raw \"\u5f20\u4e09\" normalized \"\u5f20\u4e09\"",
+          "representative raw value: \"SKU.X \"",
+          "A count 1: line 5 raw \"SKU.X \" normalized \"SKU.X\"",
+          "B count 1: line 5 raw \"SKU.X\" normalized \"SKU.X\"",
+          "representative raw value: \"\uff10\uff10\uff11\"",
+          "BEGIN ONLY-IN-A (original values, not comparison keys)\n\uff10\uff10\uff11\nA-B\nEND ONLY-IN-A",
+          "BEGIN ONLY-IN-B (original values, not comparison keys)\n1\nA B\nEND ONLY-IN-B",
+          "BEGIN COMMON-A-ORIGINALS (original values, not comparison keys)\n\u5f20\u4e09 \n001\nSKU.X \nEND COMMON-A-ORIGINALS",
+          "A (left): 7 / 1 / 6 / 5 / 1",
+          "B (right): 5 / 0 / 5 / 5 / 0"
+        ]
+      }
     }
   ]
 }
@@ -679,6 +722,108 @@ function compareLists(leftText, rightText, options) {
     leftOnly: leftOnly,
     rightOnly: rightOnly,
     common: common
+  };
+}
+
+/* compareListsFallback: the production recovery path used when compareLists
+   throws. It is a second, independent implementation of the same documented
+   rules and the same limits. It never calls compareLists and never touches any
+   test, fixture, or report code. It shares only the immutable constants above
+   and the formatting helpers below. */
+function compareListsFallback(leftText, rightText, options) {
+  var trimOn = !!(options && options.trim);
+  var caseOn = !(options && options.caseSensitive === false);
+  var texts = [String(leftText === null || leftText === undefined ? '' : leftText), String(rightText === null || rightText === undefined ? '' : rightText)];
+  var names = ['left', 'right'];
+  var i;
+  for (i = 0; i < 2; i++) {
+    if (texts[i].length > MAX_CODE_UNITS) {
+      return { error: { code: 'INPUT_TOO_LONG', message: 'The ' + names[i] + ' input is over ' + MAX_CODE_UNITS + ' UTF-16 code units. Nothing was compared.' } };
+    }
+  }
+  var perSide = [];
+  for (i = 0; i < 2; i++) {
+    var rows = texts[i].length === 0 ? [] : texts[i].split(/\r\n|\n|\r/);
+    if (rows.length > MAX_LINES) {
+      return { error: { code: 'TOO_MANY_LINES', message: 'The ' + names[i] + ' input has over ' + MAX_LINES + ' lines. Nothing was compared.' } };
+    }
+    perSide.push(rows);
+  }
+  var built = [];
+  for (i = 0; i < 2; i++) {
+    var rowsNow = perSide[i];
+    var st = { inputLines: rowsNow.length, blankLines: 0, validRows: 0, uniqueValues: 0, duplicateExtraRows: 0 };
+    var order = [];
+    var items = {};
+    for (var n = 0; n < rowsNow.length; n++) {
+      var rawNow = rowsNow[n];
+      var isBlank = rawNow.length === 0 || /^[ \t]+$/.test(rawNow);
+      if (isBlank) {
+        st.blankLines++;
+        continue;
+      }
+      st.validRows++;
+      var normalizedNow = rawNow;
+      if (trimOn) {
+        normalizedNow = normalizedNow.replace(/^[ \t]+/, '').replace(/[ \t]+$/, '');
+      }
+      var keyNow = caseOn ? normalizedNow : foldAsciiLower(normalizedNow);
+      var slot = Object.prototype.hasOwnProperty.call(items, keyNow) ? items[keyNow] : null;
+      if (slot === null) {
+        slot = { key: keyNow, count: 0, records: [] };
+        items[keyNow] = slot;
+        order.push(keyNow);
+      }
+      slot.count++;
+      slot.records.push({ line: n + 1, raw: rawNow, normalized: normalizedNow });
+    }
+    st.uniqueValues = order.length;
+    st.duplicateExtraRows = st.validRows - order.length;
+    built.push({ stats: st, order: order, items: items });
+  }
+  var leftBuilt = built[0];
+  var rightBuilt = built[1];
+  var onlyA = [];
+  var onlyB = [];
+  var both = [];
+  var rightSeen = {};
+  for (i = 0; i < leftBuilt.order.length; i++) {
+    var k = leftBuilt.order[i];
+    var lItem = leftBuilt.items[k];
+    if (Object.prototype.hasOwnProperty.call(rightBuilt.items, k)) {
+      rightSeen[k] = true;
+      var rItem = rightBuilt.items[k];
+      both.push({
+        key: lItem.key,
+        left: { count: lItem.count, records: lItem.records },
+        right: { count: rItem.count, records: rItem.records }
+      });
+    } else {
+      onlyA.push({
+        key: lItem.key,
+        left: { count: lItem.count, records: lItem.records },
+        right: { count: 0, records: [] }
+      });
+    }
+  }
+  for (i = 0; i < rightBuilt.order.length; i++) {
+    var k2 = rightBuilt.order[i];
+    if (!rightSeen[k2]) {
+      var rItem2 = rightBuilt.items[k2];
+      onlyB.push({
+        key: rItem2.key,
+        left: { count: 0, records: [] },
+        right: { count: rItem2.count, records: rItem2.records }
+      });
+    }
+  }
+  return {
+    rules: { trim: trimOn, caseSensitive: caseOn, texts: RULE_TEXTS },
+    leftStats: leftBuilt.stats,
+    rightStats: rightBuilt.stats,
+    leftOnly: onlyA,
+    rightOnly: onlyB,
+    common: both
   };
 }
 
@@ -803,7 +948,8 @@ function formatTransfer(model, metadata) {
 </script>
 
 <script id="acceptance-tests">
-/* acceptance-tests: runs the production core against pre-declared expected values. No DOM. */
+/* acceptance-tests: runs BOTH production comparison paths (compareLists and
+   compareListsFallback) against pre-declared expected values. No DOM. */
 function deepEqual(a, b) {
   if (a === b) {
     return true;
@@ -1015,7 +1161,7 @@ function pushFinalAssertions(assertions, model, expected) {
   pushAssertion(assertions, 'final lists (original values, not keys) match in order', JSON.stringify(expected.final), JSON.stringify(finalLists(model)), deepEqual(finalLists(model), expected.final));
 }
 
-function runOneCase(fx, ruleTexts) {
+function runOneCaseOnPath(pathName, implFn, fx, ruleTexts) {
   var assertions = [];
   var expected = buildExpected(fx, ruleTexts);
   var leftText = expandFixtureInput(fx, 'left');
@@ -1023,7 +1169,7 @@ function runOneCase(fx, ruleTexts) {
   var model = null;
   var thrown = null;
   try {
-    model = compareLists(leftText, rightText, fx.options);
+    model = implFn(leftText, rightText, fx.options);
   } catch (e) {
     thrown = String(e);
   }
@@ -1068,13 +1214,51 @@ function runOneCase(fx, ruleTexts) {
       pass = false;
     }
   }
-  return { id: fx.id, expected: expected, actual: actual, pass: pass, assertions: assertions };
+  return { path: pathName, expected: expected, actual: actual, pass: pass, assertions: assertions };
+}
+
+function runOneCase(fx, ruleTexts) {
+  var paths = [
+    { name: 'primary(compareLists)', fn: compareLists },
+    { name: 'fallback(compareListsFallback)', fn: compareListsFallback }
+  ];
+  var merged = [];
+  var expectedOut = null;
+  var actualOut = {};
+  var pass = true;
+  for (var p = 0; p < paths.length; p++) {
+    var res = runOneCaseOnPath(paths[p].name, paths[p].fn, fx, ruleTexts);
+    expectedOut = res.expected;
+    actualOut[paths[p].name] = res.actual;
+    if (!res.pass) {
+      pass = false;
+    }
+    for (var a = 0; a < res.assertions.length; a++) {
+      var one = res.assertions[a];
+      merged.push({
+        name: '[' + paths[p].name + '] ' + one.name,
+        expected: one.expected,
+        actual: one.actual,
+        pass: one.pass
+      });
+    }
+    if (res.assertions.length === 0) {
+      pass = false;
+      merged.push({
+        name: '[' + paths[p].name + '] at least one assertion ran',
+        expected: 'one or more assertions',
+        actual: 'none',
+        pass: false
+      });
+    }
+  }
+  return { id: fx.id, expected: expectedOut, actual: actualOut, pass: pass, assertions: merged };
 }
 
 function runAcceptanceTests(fixtures) {
   var cases = Array.isArray(fixtures) ? fixtures : fixtures.cases;
   var ruleTexts = Array.isArray(fixtures) ? RULE_TEXTS : fixtures.ruleTexts;
-  var report = { schemaVersion: 2, passed: true, cases: [] };
+  var report = { schemaVersion: 3, passed: true, cases: [] };
   for (var i = 0; i < cases.length; i++) {
     var caseReport = runOneCase(cases[i], ruleTexts);
     if (!caseReport.pass) {
@@ -1082,12 +1266,16 @@ function runAcceptanceTests(fixtures) {
     }
     report.cases.push(caseReport);
   }
+  if (report.cases.length === 0) {
+    report.passed = false;
+  }
   return report;
 }
 </script>
 
 <script id="compare-ui">
-/* compare-ui: real DOM wiring, DOM integration checks, public check display. No network, no storage. */
+/* compare-ui: production workspace wiring only. No network, no storage, no
+   dependency on fixtures, tests, or reports. */
 function mkNode(doc, tag, attrs, text) {
   var node = doc.createElement(tag);
   if (attrs) {
@@ -1120,6 +1308,11 @@ function auditRefs(side) {
   }
   return parts.join('; ');
 }
+
+var EXAMPLE_F1 = {
+  left: "SKU-A \n001\nSKU-A \n\nx",
+  right: "y\nSKU-A\n1"
+};
 
 var FINAL_GROUPS = [
   { listKey: 'leftOnly', role: 'final-left-only', title: 'Final list: only in A (left), left first-seen order' },
@@ -1158,7 +1351,7 @@ function createComparisonApp(root, deps) {
     privacy: q('privacy')
   };
   var clipboard = (deps && deps.clipboard !== undefined) ? deps.clipboard : navigator.clipboard;
-  var state = { model: null };
+  var state = { model: null, degraded: false };
   var ruleOrder = ['input', 'splitting', 'blanks', 'trim', 'casef', 'dupes', 'zeros', 'order', 'limits', 'identity'];
   for (var ri = 0; ri < ruleOrder.length; ri++) {
     els.rulesList.appendChild(mkNode(doc, 'li', null, RULE_TEXTS[ruleOrder[ri]]));
@@ -1232,7 +1425,30 @@ function createComparisonApp(root, deps) {
     els.audit.appendChild(mkNode(doc, 'p', { className: 'hint' }, 'The comparison key is what the rules reduce a value to; raw values keep their original text including leading zeros, punctuation, and inner or trailing spaces. If a raw value itself contains a boundary word from the handoff blocks, this audit (JSON-quoted raw values with line numbers) is the authoritative mapping.'));
   }
 
-  function renderResults(model) {
+  function renderRuleSnapshot(model) {
+    var r = model.rules;
+    var snap = mkNode(doc, 'section', { className: 'snapshot', 'data-role': 'rules-snapshot' });
+    snap.appendChild(mkNode(doc, 'h4', null, 'Rules actually applied in this run'));
+    var ul = doc.createElement('ul');
+    var lines = [
+      'Trim ASCII spaces/tabs at both ends = ' + (r.trim ? 'ON' : 'OFF'),
+      'Case-sensitive = ' + (r.caseSensitive ? 'ON' : 'OFF') + ' (OFF folds only ASCII A-Z to a-z)',
+      'Blank lines: a line that is empty or only ASCII spaces/tabs is counted as a blank line and never compared as a value',
+      'Duplicates: rows with the same comparison key fold into one item; every original line number and raw value is kept in the audit',
+      'Character handling: no Unicode normalization, no full/half-width conversion, no numeric conversion; leading zeros, punctuation, and inner spaces are kept (001 is not 1, A-B is not A B)',
+      'Order: nothing is pre-sorted; A-only and common items follow A first-seen order, B-only items follow B first-seen order',
+      'Input limits for this run: at most 200,000 UTF-16 code units and 10,000 lines per side',
+      'Over the limit: a clear error is shown and the old results are cleared; input is never silently truncated',
+      'Representative values: common items use the first A original value, only-in-B items use the first B original value, only-in-A items use the first A original value'
+    ];
+    for (var i = 0; i < lines.length; i++) {
+      ul.appendChild(mkNode(doc, 'li', null, lines[i]));
+    }
+    snap.appendChild(ul);
+    return snap;
+  }
+
+  function renderResults(model, degraded) {
     els.results.textContent = '';
     els.audit.textContent = '';
     if (!model) {
@@ -1243,6 +1459,10 @@ function createComparisonApp(root, deps) {
     }
     els.leftStats.textContent = 'A (left): ' + statsLine(model.leftStats);
     els.rightStats.textContent = 'B (right): ' + statsLine(model.rightStats);
+    if (degraded) {
+      els.results.appendChild(mkNode(doc, 'p', { className: 'fallbacknote', 'data-role': 'fallback-note' }, 'Degraded run: the main comparison entry point threw an error, so these results come from the independent recovery path (compareListsFallback) working under the same rules and limits shown below. This says nothing about the optional synthetic diagnostics at the bottom of the page.'));
+    }
+    els.results.appendChild(renderRuleSnapshot(model));
     var fin = finalLists(model);
     for (var g = 0; g < FINAL_GROUPS.length; g++) {
       var spec = FINAL_GROUPS[g];
@@ -1275,6 +1495,7 @@ function createComparisonApp(root, deps) {
 
   function markStale() {
     state.model = null;
+    state.degraded = false;
     renderResults(null);
     els.handoff.value = '';
     els.generateButton.disabled = true;
@@ -1311,26 +1532,50 @@ function createComparisonApp(root, deps) {
     return null;
   }
 
+  function clearResultsAndHandoff() {
+    state.model = null;
+    state.degraded = false;
+    renderResults(null);
+    els.handoff.value = '';
+    els.generateButton.disabled = true;
+    els.copyButton.disabled = true;
+  }
+
   function doCompare() {
-    var model = compareLists(els.leftInput.value, els.rightInput.value, {
+    var opts = {
       trim: els.trimOption.checked,
       caseSensitive: els.caseOption.checked
-    });
+    };
+    var model = null;
+    var degraded = false;
+    try {
+      model = compareLists(els.leftInput.value, els.rightInput.value, opts);
+    } catch (primaryError) {
+      try {
+        model = compareListsFallback(els.leftInput.value, els.rightInput.value, opts);
+        degraded = true;
+      } catch (fallbackError) {
+        clearResultsAndHandoff();
+        setStatus('The comparison could not be completed here: the main entry point threw ' + String(primaryError) + ' and the recovery path threw ' + String(fallbackError) + '. Your inputs are kept; nothing was fabricated.', 'error');
+        return;
+      }
+    }
     if (model.error) {
-      state.model = null;
-      renderResults(null);
-      els.handoff.value = '';
-      els.generateButton.disabled = true;
-      els.copyButton.disabled = true;
+      clearResultsAndHandoff();
       setStatus(model.error.code + ': ' + model.error.message, 'error');
       return;
     }
     state.model = model;
-    renderResults(model);
+    state.degraded = degraded;
+    renderResults(model, degraded);
     els.handoff.value = '';
     els.generateButton.disabled = false;
     els.copyButton.disabled = true;
-    setStatus('Compared under the rules shown above. The final lists are below. Generate the handoff when you want to take the result away.', 'ok');
+    if (degraded) {
+      setStatus('Compared through the recovery path (the main comparison entry point threw an error). The rules above were still applied. Generate the handoff when you want to take the result away.', 'warn');
+    } else {
+      setStatus('Compared under the rules shown above. The final lists are below. Generate the handoff when you want to take the result away.', 'ok');
+    }
   }
 
   function doGenerate() {
@@ -1349,26 +1594,13 @@ function createComparisonApp(root, deps) {
     setStatus('Handoff generated from the current lists and metadata. You can edit the text before copying.', 'ok');
   }
 
-  function fixtureById(id) {
-    var node = doc.getElementById('acceptance-fixtures');
-    var data = JSON.parse(node.textContent);
-    var cases = Array.isArray(data) ? data : data.cases;
-    for (var i = 0; i < cases.length; i++) {
-      if (cases[i].id === id) {
-        return cases[i];
-      }
-    }
-    return null;
-  }
-
   function doLoadExample() {
-    var f1 = fixtureById('F1');
-    els.leftInput.value = f1.left;
-    els.rightInput.value = f1.right;
+    els.leftInput.value = EXAMPLE_F1.left;
+    els.rightInput.value = EXAMPLE_F1.right;
     els.trimOption.checked = true;
     els.caseOption.checked = true;
     markStale();
-    setStatus('Synthetic example F1 loaded into the inputs (synthetic data, not a real list). It is not compared yet.', 'warn');
+    setStatus('Synthetic example loaded into the inputs (synthetic data, not a real list). It is not compared yet.', 'warn');
   }
 
   function doClear() {
@@ -1378,26 +1610,12 @@ function createComparisonApp(root, deps) {
     els.timeA.value = '';
     els.sourceB.value = '';
     els.timeB.value = '';
-    state.model = null;
-    renderResults(null);
-    els.handoff.value = '';
-    els.generateButton.disabled = true;
-    els.copyButton.disabled = true;
+    clearResultsAndHandoff();
     setStatus('Cleared. This tool keeps nothing.', 'ok');
   }
 
   function doCopyHandoff() {
     copyText(els.handoff.value, els.handoff, 'Handoff text copied to the clipboard.');
-  }
-
-  function setControlsEnabled(enabled) {
-    els.compareButton.disabled = !enabled;
-    els.loadExampleButton.disabled = !enabled;
-    els.clearButton.disabled = !enabled;
-    els.generateButton.disabled = !enabled;
-    if (!enabled) {
-      els.copyButton.disabled = true;
-    }
   }
 
   els.leftInput.addEventListener('input', markStale);
@@ -1415,6 +1633,8 @@ function createComparisonApp(root, deps) {
   els.copyButton.addEventListener('click', doCopyHandoff);
 
   renderResults(null);
+  els.generateButton.disabled = true;
+  els.copyButton.disabled = true;
   setStatus('Load or type two lists, then compare. Nothing is uploaded or saved.', 'ok');
 
   return {
@@ -1423,18 +1643,22 @@ function createComparisonApp(root, deps) {
     clear: doClear,
     loadExample: doLoadExample,
     generate: doGenerate,
-    copy: doCopyHandoff,
-    setControlsEnabled: setControlsEnabled
+    copy: doCopyHandoff
   };
 }
+</script>
 
+<script id="diagnostics">
+/* diagnostics: optional synthetic checks and their report rendering. These run
+   only when the user presses the button. Nothing here touches the workspace
+   above: no enabling, no disabling, no clearing, no re-creating. */
 function runDomTests(fixtures) {
   var cases = Array.isArray(fixtures) ? fixtures : fixtures.cases;
   var byId = {};
   for (var ci = 0; ci < cases.length; ci++) {
     byId[cases[ci].id] = cases[ci];
   }
-  var report = { schemaVersion: 2, passed: true, cases: [] };
+  var report = { schemaVersion: 3, passed: true, cases: [] };
 
   function push(assertions, name, expected, actual, pass) {
     assertions.push({ name: name, expected: String(expected), actual: String(actual), pass: !!pass });
@@ -1538,6 +1762,7 @@ function runDomTests(fixtures) {
       push(assertions, 'left stats line rendered', 'A (left): input lines 5, blank lines 1, valid non-blank rows 4, unique values 3, duplicate extra rows 1', els.leftStats.textContent, els.leftStats.textContent === 'A (left): input lines 5, blank lines 1, valid non-blank rows 4, unique values 3, duplicate extra rows 1');
       push(assertions, 'right stats line rendered', 'B (right): input lines 3, blank lines 0, valid non-blank rows 3, unique values 3, duplicate extra rows 0', els.rightStats.textContent, els.rightStats.textContent === 'B (right): input lines 3, blank lines 0, valid non-blank rows 3, unique values 3, duplicate extra rows 0');
       push(assertions, 'no No-items marker when lists are non-empty', 'absent', els.results.textContent.indexOf('No items (0)') < 0 ? 'absent' : 'present', els.results.textContent.indexOf('No items (0)') < 0);
+      push(assertions, 'rule snapshot shows the settings actually used', 'Trim ASCII spaces/tabs at both ends = ON and Case-sensitive = ON', String(els.results.textContent.indexOf('Trim ASCII spaces/tabs at both ends = ON') >= 0 && els.results.textContent.indexOf('Case-sensitive = ON') >= 0), els.results.textContent.indexOf('Trim ASCII spaces/tabs at both ends = ON') >= 0 && els.results.textContent.indexOf('Case-sensitive = ON') >= 0);
       push(assertions, 'audit shows the comparison key label and value', 'comparison key: "SKU-A"', String(els.audit.textContent.indexOf('comparison key: "SKU-A"') >= 0), els.audit.textContent.indexOf('comparison key: "SKU-A"') >= 0);
       push(assertions, 'audit shows both A SKU-A raw lines', 'line 1 raw "SKU-A " and line 3 raw "SKU-A "', String(els.audit.textContent.indexOf('line 1 raw "SKU-A "') >= 0 && els.audit.textContent.indexOf('line 3 raw "SKU-A "') >= 0), els.audit.textContent.indexOf('line 1 raw "SKU-A "') >= 0 && els.audit.textContent.indexOf('line 3 raw "SKU-A "') >= 0);
       push(assertions, 'no auto handoff before Generate', 'empty handoff, generate enabled, copy disabled', 'len=' + els.handoff.value.length + ' gen=' + String(!els.generateButton.disabled) + ' copy=' + String(els.copyButton.disabled), els.handoff.value === '' && els.generateButton.disabled === false && els.copyButton.disabled === true);
@@ -1660,6 +1885,7 @@ function runDomTests(fixtures) {
       els.compareButton.click();
       push(assertions, 'F4 common final list keeps A originals, not folded keys', 'A\nx', String(finalText(root, 'final-common')), finalText(root, 'final-common') === 'A\nx');
       push(assertions, 'F4 both only-lists are empty with the marker', '2 markers', String((els.results.textContent.match(/No items \(0\)/g) || []).length), (els.results.textContent.match(/No items \(0\)/g) || []).length === 2);
+      push(assertions, 'rule snapshot now reports case folding OFF', 'Case-sensitive = OFF', String(els.results.textContent.indexOf('Case-sensitive = OFF') >= 0), els.results.textContent.indexOf('Case-sensitive = OFF') >= 0);
       push(assertions, 'audit still shows the B raw values a and X', 'both present', String(els.audit.textContent.indexOf('raw "a"') >= 0 && els.audit.textContent.indexOf('raw "X"') >= 0), els.audit.textContent.indexOf('raw "a"') >= 0 && els.audit.textContent.indexOf('raw "X"') >= 0);
     });
   });
@@ -1676,6 +1902,7 @@ function runDomTests(fixtures) {
       setCheckbox(els.trimOption, false);
       els.compareButton.click();
       push(assertions, 'F6 common final list holds both raw shapes', ' A \nA', String(finalText(root, 'final-common')), finalText(root, 'final-common') === ' A \nA');
+      push(assertions, 'rule snapshot reports trim OFF after the toggle', 'Trim ASCII spaces/tabs at both ends = OFF', String(els.results.textContent.indexOf('Trim ASCII spaces/tabs at both ends = OFF') >= 0), els.results.textContent.indexOf('Trim ASCII spaces/tabs at both ends = OFF') >= 0);
     });
   });
 
@@ -1687,8 +1914,10 @@ function runDomTests(fixtures) {
       els.compareButton.click();
       var injected = root.querySelectorAll('img, script, iframe').length;
       push(assertions, 'no img/script/iframe element created from list content', '0', String(injected), injected === 0);
-      push(assertions, 'literal markup string shown as text', 'contains \u003cimg src=x onerror=alert(1)>', els.results.textContent.indexOf('\u003cimg src=x onerror=alert(1)>') >= 0 ? 'found' : 'missing', els.results.textContent.indexOf('\u003cimg src=x onerror=alert(1)>') >= 0);
+      push(assertions, 'literal markup string appears in the final common textarea value', 'contains <img src=x onerror=alert(1)>', finalText(root, 'final-common') !== null && finalText(root, 'final-common').indexOf('\u003cimg src=x onerror=alert(1)>') >= 0 ? 'found' : 'missing', finalText(root, 'final-common') !== null && finalText(root, 'final-common').indexOf('\u003cimg src=x onerror=alert(1)>') >= 0);
+      push(assertions, 'literal markup string shown as text in the audit', 'contains <img src=x onerror=alert(1)>', els.audit.textContent.indexOf('\u003cimg src=x onerror=alert(1)>') >= 0 ? 'found' : 'missing', els.audit.textContent.indexOf('\u003cimg src=x onerror=alert(1)>') >= 0);
       push(assertions, 'prototype key handled as an ordinary value', 'contains "__proto__"', String(finalText(root, 'final-left-only') === '__proto__'), finalText(root, 'final-left-only') === '__proto__');
+      push(assertions, 'constructor key handled as an ordinary value', 'common list keeps both raws', String(finalText(root, 'final-common') === '\u003cimg src=x onerror=alert(1)>\nconstructor'), finalText(root, 'final-common') === '\u003cimg src=x onerror=alert(1)>\nconstructor');
     });
   });
 
@@ -1737,6 +1966,70 @@ function runDomTests(fixtures) {
     });
   });
 
+  addCase('D11-R1-fidelity-on-page-and-transfer', function (assertions) {
+    withApp(function (app, els, capture, root) {
+      var r1 = byId.R1;
+      setInput(els.leftInput, expandFixtureInput(r1, 'left'));
+      setInput(els.rightInput, expandFixtureInput(r1, 'right'));
+      setCheckbox(els.trimOption, true);
+      setCheckbox(els.caseOption, true);
+      els.compareButton.click();
+      push(assertions, 'R1 only-in-A list keeps the full-width digits and A-B', '\uff10\uff10\uff11\nA-B', String(finalText(root, 'final-left-only')), finalText(root, 'final-left-only') === '\uff10\uff10\uff11\nA-B');
+      push(assertions, 'R1 only-in-B list keeps 1 and A B apart', '1\nA B', String(finalText(root, 'final-right-only')), finalText(root, 'final-right-only') === '1\nA B');
+      push(assertions, 'R1 common list keeps A originals including trailing spaces', '\u5f20\u4e09 \n001\nSKU.X ', String(finalText(root, 'final-common')), finalText(root, 'final-common') === '\u5f20\u4e09 \n001\nSKU.X ');
+      push(assertions, 'R1 A stats line', 'A (left): input lines 7, blank lines 1, valid non-blank rows 6, unique values 5, duplicate extra rows 1', els.leftStats.textContent, els.leftStats.textContent === 'A (left): input lines 7, blank lines 1, valid non-blank rows 6, unique values 5, duplicate extra rows 1');
+      push(assertions, 'R1 B stats line', 'B (right): input lines 5, blank lines 0, valid non-blank rows 5, unique values 5, duplicate extra rows 0', els.rightStats.textContent, els.rightStats.textContent === 'B (right): input lines 5, blank lines 0, valid non-blank rows 5, unique values 5, duplicate extra rows 0');
+      var at = els.audit.textContent;
+      push(assertions, 'audit keeps the two A occurrences of the Chinese value with trailing space', 'A count 2: line 2 raw "\u5f20\u4e09 " ... line 6 raw "\u5f20\u4e09 "', String(at.indexOf('A count 2: line 2 raw "\u5f20\u4e09 " normalized "\u5f20\u4e09"; line 6 raw "\u5f20\u4e09 " normalized "\u5f20\u4e09"') >= 0), at.indexOf('A count 2: line 2 raw "\u5f20\u4e09 " normalized "\u5f20\u4e09"; line 6 raw "\u5f20\u4e09 " normalized "\u5f20\u4e09"') >= 0);
+      push(assertions, 'audit keeps the B occurrence of the Chinese value', 'B count 1: line 1 raw "\u5f20\u4e09" normalized "\u5f20\u4e09"', String(at.indexOf('B count 1: line 1 raw "\u5f20\u4e09" normalized "\u5f20\u4e09"') >= 0), at.indexOf('B count 1: line 1 raw "\u5f20\u4e09" normalized "\u5f20\u4e09"') >= 0);
+      push(assertions, 'audit keeps the SKU.X originals on both sides', 'A line 5 raw "SKU.X " and B line 5 raw "SKU.X"', String(at.indexOf('A count 1: line 5 raw "SKU.X " normalized "SKU.X"') >= 0 && at.indexOf('B count 1: line 5 raw "SKU.X" normalized "SKU.X"') >= 0), at.indexOf('A count 1: line 5 raw "SKU.X " normalized "SKU.X"') >= 0 && at.indexOf('B count 1: line 5 raw "SKU.X" normalized "SKU.X"') >= 0);
+      push(assertions, 'audit shows the full-width value as its own item', 'representative raw value: "\uff10\uff10\uff11"', String(at.indexOf('representative raw value: "\uff10\uff10\uff11"') >= 0), at.indexOf('representative raw value: "\uff10\uff10\uff11"') >= 0);
+      els.generateButton.click();
+      var hv = els.handoff.value;
+      push(assertions, 'transfer blocks carry the R1 original values', 'three blocks with \uff10\uff10\uff11 / 1\nA B / \u5f20\u4e09 \n001\nSKU.X ', String(hv.indexOf('BEGIN ONLY-IN-A (original values, not comparison keys)\n\uff10\uff10\uff11\nA-B\nEND ONLY-IN-A') >= 0 && hv.indexOf('BEGIN ONLY-IN-B (original values, not comparison keys)\n1\nA B\nEND ONLY-IN-B') >= 0 && hv.indexOf('BEGIN COMMON-A-ORIGINALS (original values, not comparison keys)\n\u5f20\u4e09 \n001\nSKU.X \nEND COMMON-A-ORIGINALS') >= 0), hv.indexOf('BEGIN ONLY-IN-A (original values, not comparison keys)\n\uff10\uff10\uff11\nA-B\nEND ONLY-IN-A') >= 0 && hv.indexOf('BEGIN ONLY-IN-B (original values, not comparison keys)\n1\nA B\nEND ONLY-IN-B') >= 0 && hv.indexOf('BEGIN COMMON-A-ORIGINALS (original values, not comparison keys)\n\u5f20\u4e09 \n001\nSKU.X \nEND COMMON-A-ORIGINALS') >= 0);
+      push(assertions, 'transfer carries the separated R1 counts', 'A 7/1/6/5/1 and B 5/0/5/5/0', String(hv.indexOf('A (left): 7 / 1 / 6 / 5 / 1') >= 0 && hv.indexOf('B (right): 5 / 0 / 5 / 5 / 0') >= 0), hv.indexOf('A (left): 7 / 1 / 6 / 5 / 1') >= 0 && hv.indexOf('B (right): 5 / 0 / 5 / 5 / 0') >= 0);
+    });
+  });
+
+  addCase('D12-degraded-compare-uses-the-recovery-path', function (assertions) {
+    withApp(function (app, els, capture, root) {
+      var f1 = byId.F1;
+      var saved = window.compareLists;
+      try {
+        window.compareLists = function () { throw new Error('injected primary failure'); };
+        setInput(els.leftInput, f1.left);
+        setInput(els.rightInput, f1.right);
+        els.compareButton.click();
+        push(assertions, 'degraded run still delivers the three final lists', '001\nx | y\n1 | SKU-A ', String(finalText(root, 'final-left-only')) + ' | ' + String(finalText(root, 'final-right-only')) + ' | ' + String(finalText(root, 'final-common')), finalText(root, 'final-left-only') === '001\nx' && finalText(root, 'final-right-only') === 'y\n1' && finalText(root, 'final-common') === 'SKU-A ');
+        push(assertions, 'degraded run shows the recovery-path notice', 'contains recovery path', String(els.results.textContent.indexOf('recovery path') >= 0), els.results.textContent.indexOf('recovery path') >= 0);
+        push(assertions, 'degraded run still offers Generate and keeps product buttons enabled', 'generate enabled, compare enabled', 'gen=' + String(!els.generateButton.disabled) + ' cmp=' + String(!els.compareButton.disabled), els.generateButton.disabled === false && els.compareButton.disabled === false);
+        els.generateButton.click();
+        els.handoff.value = 'edited handoff by tester';
+        els.copyButton.click();
+        push(assertions, 'degraded run keeps edited handoff copy working', 'edited handoff by tester', String(capture.texts[capture.texts.length - 1]), capture.texts[capture.texts.length - 1] === 'edited handoff by tester');
+      } finally {
+        window.compareLists = saved;
+      }
+    });
+    withApp(function (app, els, capture, root) {
+      var f1 = byId.F1;
+      var saved = window.compareLists;
+      var savedFb = window.compareListsFallback;
+      try {
+        window.compareLists = function () { throw new Error('injected primary failure'); };
+        window.compareListsFallback = function () { throw new Error('injected fallback failure'); };
+        setInput(els.leftInput, f1.left);
+        setInput(els.rightInput, f1.right);
+        els.compareButton.click();
+        push(assertions, 'both paths failing keeps the input and reports honestly', 'input kept, error status, empty results', 'inputLen=' + String(els.leftInput.value.length) + ' status=' + els.status.textContent.slice(0, 30), els.leftInput.value === f1.left && els.status.textContent.indexOf('could not be completed') >= 0 && els.results.textContent === 'No comparison result yet.');
+        push(assertions, 'both paths failing disables generate and copy but not compare', 'gen+copy disabled, compare enabled', 'gen=' + String(els.generateButton.disabled) + ' copy=' + String(els.copyButton.disabled) + ' cmp=' + String(els.compareButton.disabled), els.generateButton.disabled === true && els.copyButton.disabled === true && els.compareButton.disabled === false);
+      } finally {
+        window.compareLists = saved;
+        window.compareListsFallback = savedFb;
+      }
+    });
+  });
+
   return report;
 }
 
@@ -1766,39 +2059,86 @@ function renderReport(container, report) {
   }
 }
 
-function startPage() {
-  var gateStatus = document.getElementById('gate-status');
+function safeReportText(container, text) {
   try {
-    var fixtures = JSON.parse(document.getElementById('acceptance-fixtures').textContent);
-    var appRoot = document.getElementById('app-root');
-    var app = createComparisonApp(appRoot);
-    app.setControlsEnabled(false);
-    var rerunButton = document.getElementById('rerun-checks');
-    function runAll() {
-      var coreReport;
-      var domReport;
-      try {
-        coreReport = runAcceptanceTests(fixtures);
-      } catch (e1) {
-        coreReport = { schemaVersion: 2, passed: false, cases: [], runnerError: String(e1) };
-      }
-      try {
-        domReport = runDomTests(fixtures);
-      } catch (e2) {
-        domReport = { schemaVersion: 2, passed: false, cases: [], runnerError: String(e2) };
-      }
-      renderReport(document.getElementById('core-report'), coreReport);
-      renderReport(document.getElementById('dom-report'), domReport);
-      var gate = coreReport.passed === true && domReport.passed === true;
-      app.setControlsEnabled(gate);
-      gateStatus.textContent = gate
-        ? 'All synthetic checks passed. The comparison controls in the workspace are enabled.'
-        : 'Some synthetic checks failed (see the reports above). The comparison controls stay disabled.';
-    }
-    rerunButton.addEventListener('click', runAll);
-    runAll();
+    container.textContent = text;
   } catch (e) {
-    gateStatus.textContent = 'Startup error: ' + String(e) + '. The comparison controls are unavailable.';
+    /* even the fallback display failing must not affect the workspace above */
+  }
+}
+
+function runDiagnostics() {
+  var statusEl = document.getElementById('diagnostic-status');
+  var fixtures = null;
+  var parseError = null;
+  try {
+    fixtures = JSON.parse(document.getElementById('acceptance-fixtures').textContent);
+  } catch (eParse) {
+    parseError = String(eParse);
+  }
+  if (parseError !== null) {
+    try {
+      statusEl.textContent = 'Diagnostic data could not be parsed: ' + parseError + '. Nothing in the comparison tool above is affected.';
+    } catch (eStatus) {
+      /* display only */
+    }
+    safeReportText(document.getElementById('core-report'), 'Diagnostic data is unreadable, so no core checks ran. The comparison tool above is unaffected.');
+    safeReportText(document.getElementById('dom-report'), 'Diagnostic data is unreadable, so no interface checks ran. The comparison tool above is unaffected.');
+    return;
+  }
+  var coreReport;
+  var domReport;
+  try {
+    coreReport = runAcceptanceTests(fixtures);
+  } catch (eCore) {
+    coreReport = { schemaVersion: 3, passed: false, cases: [], runnerError: String(eCore) };
+  }
+  try {
+    domReport = runDomTests(fixtures);
+  } catch (eDom) {
+    domReport = { schemaVersion: 3, passed: false, cases: [], runnerError: String(eDom) };
+  }
+  try {
+    renderReport(document.getElementById('core-report'), coreReport);
+  } catch (eRenderCore) {
+    safeReportText(document.getElementById('core-report'), 'Diagnostic report rendering failed: ' + String(eRenderCore) + '. The comparison tool above is unaffected.');
+  }
+  try {
+    renderReport(document.getElementById('dom-report'), domReport);
+  } catch (eRenderDom) {
+    safeReportText(document.getElementById('dom-report'), 'Diagnostic report rendering failed: ' + String(eRenderDom) + '. The comparison tool above is unaffected.');
+  }
+  try {
+    statusEl.textContent = 'Diagnostics finished at your request (core: ' + (coreReport.passed ? 'PASS' : 'FAIL') + ', interface: ' + (domReport.passed ? 'PASS' : 'FAIL') + '). The comparison tool above is never gated by these results.';
+  } catch (eStatus2) {
+    /* display only */
+  }
+}
+</script>
+
+<script id="page-start">
+/* page-start: creates the user workspace first and unconditionally, then binds
+   the optional diagnostics button. Neither step depends on the other, and
+   nothing here reads fixtures, tests, or reports. */
+function startPage() {
+  try {
+    var appRoot = document.getElementById('app-root');
+    createComparisonApp(appRoot);
+  } catch (eApp) {
+    try {
+      document.getElementById('app-root').textContent = 'The workspace could not be created in this browser: ' + String(eApp);
+    } catch (eAppShow) {
+      /* nothing further we can display */
+    }
+  }
+  try {
+    document.getElementById('run-checks').addEventListener('click', runDiagnostics);
+  } catch (eDiag) {
+    try {
+      document.getElementById('diagnostic-status').textContent = 'The optional diagnostics button could not be bound. The comparison tool above is unaffected.';
+    } catch (eDiagShow) {
+      /* display only */
+    }
   }
 }
 

@@ -13,14 +13,20 @@
   nav a{display:block;margin:.2rem 0}
 </style>
 </head>
-<body>
+<body data-release="lc-20261018-usable-decoupled-2">
 <h1>Depth 1</h1>
-<p>Infrastructure fixture. No agent has written anything here yet.</p>
+<p>Infrastructure fixture with one tool written here: a browser-local list comparison.
+Paste two plain multi-line lists (one string per line) and it produces three copyable
+final lists &mdash; only in A, only in B, common to both &mdash; plus an editable
+plain-text handoff with the rules and per-side counts. Everything runs in your
+browser; list contents are never uploaded.</p>
+<p><a href="/zone001/list-compare.html">Open the list comparison tool</a></p>
 <p>Public path: <code>/zone001/index.html</code><br>
 Covered by: <code>/zone001/*</code><br>
 Also reachable as <code>/zone001/</code> &mdash; that one depends on the origin Worker rewriting <code>/</code> to <code>/index.html</code>.</p>
 <nav>
 <a href="/zone001/index.html">/zone001/index.html</a>
+<a href="/zone001/list-compare.html">/zone001/list-compare.html</a>
 <a href="/zone001/a/b.html">/zone001/a/b.html</a>
 <a href="/zone001/a/b/c.html">/zone001/a/b/c.html</a>
 </nav>

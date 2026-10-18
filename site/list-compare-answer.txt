@@ -3,16 +3,29 @@ Draft answer - not posted
 
 Status of this draft
 --------------------
-This is a prepared answer draft. It has NOT been posted anywhere. No external
-arrival exists for it: "No external arrival observed".
+This is a prepared answer draft. It has NOT been posted anywhere, and it is a
+candidate only: conditions are not established, and no verified third-party
+arrival is claimed ("No external arrival observed"). Nothing below is evidence
+of posting, arrival, adoption, or traffic.
 
-Candidate question (needs on-site confirmation before anything is posted):
-- https://stackoverflow.com/questions/3462143/get-difference-between-two-lists-with-unique-entries
-  Title as remembered from the planner brief: "Get difference between two lists
-  with unique entries". Whether the question is still open, whether it accepts a
-  new independent answer, and whether its exact scope matches the task below are
-  UNKNOWN to this draft: the page could not be fetched this run (HTTP 403), so
-  nothing about its current state is verified.
+Candidate question (specific position, current state unverified)
+----------------------------------------------------------------
+- Full address: https://stackoverflow.com/questions/3462143/get-difference-between-two-lists-with-unique-entries
+  Title as remembered from the planning brief: "Get difference between two lists
+  with unique entries".
+- Verification status of the question itself: UNVERIFIED. A single automated GET
+  on 2026-10-18 returned HTTP 403, so whether the question is still open, still
+  accepts new answers, and how its exact scope reads today could not be checked
+  from here. This draft does not paraphrase any site text as if it had been read.
+
+Rule sources a moderator or reader can check themselves
+-------------------------------------------------------
+- https://stackoverflow.com/help/promotion - verification status: UNVERIFIED this
+  run (HTTP 403 on 2026-10-18). No quotation is provided because no text was
+  retrieved. The exact current wording must be read on-site before posting.
+- https://stackoverflow.com/help/how-to-answer - verification status: UNVERIFIED
+  this run (HTTP 403 on 2026-10-18). No quotation is provided for the same
+  reason.
 
 Answer body (usable as-is once the candidate is confirmed)
 ----------------------------------------------------------
@@ -141,47 +154,44 @@ Check it on the example (the trailing space is written as an escape):
     assert r['stats_b'] == (3, 0, 3, 3, 0)
 
 One caution over the usual dict/set one-liners: a plain set difference loses the
-occurrence counts and the original text (set of strings would also fold "001" and
-"1" correctly only because they really are different strings, but it silently
-drops which side's spelling you should hand over). If you only need the values
-and you accept losing counts and originals, `set(a) - set(b)` is fine; the code
-above is for when the counts and the exact original strings are part of the
-deliverable.
+occurrence counts and the original text (a set of strings also silently drops
+which side's spelling you should hand over). If you only need the values and you
+accept losing counts and originals, `set(a) - set(b)` is fine; the code above is
+for when the counts and the exact original strings are part of the deliverable.
 
 Tool link (optional; drop this paragraph where a link would be unwelcome)
 -----------------------------------------------------------------------
-Disclosure: I maintain this tool. It does the comparison above in the browser,
-with the rules printed on the page, and produces a copyable plain-text handoff
-with both sides' statistics and a line-by-line audit:
+Disclosure: I maintain this tool. It performs the comparison above in the
+browser, with the rules printed on the page, and produces a copyable plain-text
+handoff with both sides' statistics and a line-by-line audit:
 
     https://intelligenism.com/zone001/list-compare.html
 
-The link carries no list data and no query parameters. The answer above stands on
-its own; the link is not the answer.
+The link carries no list data and no query parameters. The answer above stands
+on its own; the link is not the answer.
 
-Public edit notes (conditions before posting)
----------------------------------------------
-- Rule sources that a moderator or any reader can check themselves:
-  https://stackoverflow.com/help/promotion and
-  https://stackoverflow.com/help/how-to-answer
-- Quote status: NOT VERIFIED this run. All three URLs above (including the
-  candidate question) returned HTTP 403 to the single automated GET attempted on
-  2026-10-18. No rule wording is quoted here because none was retrieved; nothing
-  in this draft paraphrases rule text as if it had been read. To be re-checked
-  manually in a browser before posting.
-- Conditions that must hold on-site before posting (each to be confirmed by a
-  human at the site, none confirmed by this draft):
-  - the candidate question is open and still accepts a new answer;
-  - a self-contained answer with an optional disclosed tool link matches that
-    site's promotion and disclosure expectations;
-  - the answering account is allowed to post there.
-- Unknowns kept explicit: the question's current state, the exact current wording
-  of the promotion and answer-quality rules, and any account permissions are all
-  unknown to this draft. Unknown is not "fine".
-- Observable arrival method: if this is ever posted, arrival is proven only by
-  the public answer permalink containing the independent, useful answer text
-  above. Until such a permalink exists the honest status line stays:
-  "No external arrival observed". Any visits the tool owner makes to the tool
-  page are self-checks, not external arrival, and are counted separately.
+Publishing conditions (each to be confirmed on-site before anything is posted)
+-----------------------------------------------------------------------------
+- The candidate question is open and still accepts a new independent answer,
+  and its scope matches the answer above. Status: not established by this draft.
+- The answer is independently useful without the link (code, worked example and
+  rules above). Status: satisfied by the text itself.
+- The disclosure above and the optional tool link shape match the site's current
+  promotion/disclosure expectations. Status: not established - the rule pages
+  listed above are unverified this run.
+- The answering account is allowed to post there. Status: unknown to this draft.
+- Any condition that stays unknown keeps this item at "candidate only". Unknown
+  is not "fine".
+
+Three states kept apart
+-----------------------
+- Candidate only: yes, that is the current state of everything above.
+- Ready to attempt: no - at least the question state and the current rule wording
+  are unverified.
+- Verified public posting / third-party arrival: none. No answer permalink
+  exists. If one is ever created, arrival is proven only by that public permalink
+  containing the independent answer text above. Visits the tool owner makes to
+  the tool page are self-checks, not third-party arrival, and are counted
+  separately from any external visit.
 
 End of draft.
