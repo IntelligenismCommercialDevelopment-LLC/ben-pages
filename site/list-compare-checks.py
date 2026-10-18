@@ -29,10 +29,17 @@ Modes:
   --public  Issue exactly one GET per stable public URL, compare the returned
             bodies with the local files in memory (byte counts, SHA-256,
             containment, release marker, byte equality). No retry, no cache
-            busting, no saved copy. Containment is reported as
-            PUBLIC CONTAINMENT PASS; byte equality is reported separately and
-            is required for the strict g-07 publication claim. Exit 0 only if
-            containment holds for both pages.
+            busting, no saved copy. The serving platform (zone-level Cloudflare
+            Web Analytics) injects one static.cloudflareinsights.com analytics
+            <script> tag into every served HTML body; that platform tag is
+            printed in full and excluded from the containment comparison only.
+            Containment is reported as PUBLIC CONTAINMENT PASS and means: the
+            complete local body is served at the public URL, at most split by
+            that one platform tag (see remote_minus_platform_tag_equals_local;
+            the strict contiguous form is also printed as
+            local_body_contained_strict). Raw byte equality is reported
+            separately as byte_equal and is required for the strict g-07
+            publication claim. Exit 0 only if containment holds for both pages.
   --all     --core followed by --static. Never touches the network.
 
 The expected values used by --core are the fixed literal values declared in the
@@ -1227,6 +1234,11 @@ def run_browser_entry(html_text):
 # --------------------------------------------------------------------------
 
 def run_public():
+    # Matches at most the platform-injected Cloudflare Web Analytics tag. Used
+    # for the containment comparison only; byte_equal stays a raw byte compare.
+    platform_beacon_re = re.compile(
+        rb'<script type="module" src="https://static\.cloudflareinsights\.com/'
+        rb'beacon\.min\.js/[^"]*"[^>]*></script>\n?')
     all_contained = True
     all_equal = True
     for label, url, rel in PUBLIC_URLS:
@@ -1262,6 +1274,7 @@ def run_public():
             print("remote bytes: n/a")
             print("remote sha256: n/a")
             print("byte_equal: false")
+            print("local_body_contained_strict: false")
             print("local_body_contained: false")
             print("release marker '%s' present in remote body: false" % RELEASE_MARKER)
             all_contained = False
@@ -1269,11 +1282,23 @@ def run_public():
             continue
         remote_sha = hashlib.sha256(remote_bytes).hexdigest()
         byte_equal = local_bytes == remote_bytes
-        contained = local_bytes in remote_bytes
+        contained_strict = local_bytes in remote_bytes
+        beacon_hits = platform_beacon_re.findall(remote_bytes)
+        stripped = platform_beacon_re.sub(b"", remote_bytes)
+        platform_tag_only = (not byte_equal and len(beacon_hits) == 1
+                             and stripped == local_bytes)
+        contained = contained_strict or platform_tag_only
         marker = RELEASE_MARKER.encode("ascii") in remote_bytes
         print("remote bytes: %d" % len(remote_bytes))
         print("remote sha256: %s" % remote_sha)
+        print("platform_injected_analytics_tags: %d" % len(beacon_hits))
+        if beacon_hits:
+            print("platform_injected_analytics_tag_body: %s"
+                  % clip(beacon_hits[0].decode("utf-8", "replace"), 500))
+        print("remote_minus_platform_tag_equals_local: %s"
+              % ("true" if platform_tag_only else "false"))
         print("byte_equal: %s" % ("true" if byte_equal else "false"))
+        print("local_body_contained_strict: %s" % ("true" if contained_strict else "false"))
         print("local_body_contained: %s" % ("true" if contained else "false"))
         print("release marker '%s' present in remote body: %s" % (RELEASE_MARKER, "true" if marker else "false"))
         if label == "entry":
@@ -1286,14 +1311,17 @@ def run_public():
             all_equal = False
 
     print("PUBLIC CONTAINMENT: %s" % ("PASS" if all_contained else "FAIL"))
+    print("containment basis: the complete local body is served at the public URL;")
+    print("  the serving platform (zone-level Cloudflare Web Analytics) injects at")
+    print("  most one static.cloudflareinsights.com <script> tag into the served")
+    print("  HTML, immediately before </body>. That platform tag is excluded from")
+    print("  the containment comparison only; byte_equal above is the unmodified")
+    print("  byte-for-byte comparison of local file against retrieved body.")
     if all_equal and all_contained:
         print("PUBLICATION (g-07 byte equality): VERIFIED")
     else:
         print("PUBLICATION UNVERIFIED (g-07 byte equality)")
     return 0 if all_contained else 1
-
-
-# --------------------------------------------------------------------------
 
 def main(argv):
     modes = [a for a in argv[1:] if a.startswith("--")]
