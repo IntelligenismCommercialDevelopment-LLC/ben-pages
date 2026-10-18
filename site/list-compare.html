@@ -18,6 +18,9 @@
   .inputs { display: flex; flex-wrap: wrap; gap: 1rem; }
   .inputs .col { flex: 1 1 22rem; min-width: 18rem; display: flex; flex-direction: column; }
   textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: 0.92rem; }
+  .metagrid { display: flex; flex-wrap: wrap; gap: 1rem; }
+  .metagrid label { flex: 1 1 14rem; min-width: 12rem; font-size: 0.95rem; }
+  .metagrid input { display: block; width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: 0.92rem; }
   .options label { display: inline-block; margin: 0.4rem 1rem 0.4rem 0; }
   .buttons button { margin: 0.25rem 0.5rem 0.25rem 0; }
   .status { min-height: 1.3rem; }
@@ -25,10 +28,14 @@
   .status.error { color: #a11212; }
   .status.ok { color: #0b5d1e; }
   .stats div { font-family: ui-monospace, monospace; font-size: 0.92rem; }
-  .groups section { border-top: 1px solid #ccd2d9; padding-top: 0.4rem; margin-top: 0.8rem; }
+  .statlabel { font-family: ui-monospace, monospace; font-size: 0.85rem; color: #55606b; }
+  .results section { border-top: 1px solid #ccd2d9; padding-top: 0.4rem; margin-top: 0.8rem; }
+  .finallist { min-height: 2.6rem; background: #fbfcfd; }
+  .none { color: #55606b; }
+  .hint { font-size: 0.88rem; color: #55606b; }
+  .audititem { margin: 0.55rem 0 0.1rem; font-family: ui-monospace, monospace; }
+  .audit .refs { font-family: ui-monospace, monospace; font-size: 0.88rem; margin: 0.1rem 0; }
   .item-key { font-family: ui-monospace, monospace; background: #eef1f4; padding: 0 0.25rem; }
-  .groups li { margin: 0.45rem 0; }
-  .groups .refs { font-family: ui-monospace, monospace; font-size: 0.88rem; }
   pre { white-space: pre-wrap; word-break: break-word; background: #f6f8fa; border: 1px solid #d6dbe1; padding: 0.4rem 0.6rem; font-size: 0.85rem; }
   .pass { color: #0b5d1e; }
   .fail { color: #a11212; font-weight: 600; }
@@ -37,23 +44,23 @@
   .gate { border: 1px solid #9aa3ad; padding: 0.5rem 0.7rem; background: #f6f8fa; }
 </style>
 </head>
-<body data-product="list-compare-v1">
+<body data-product="list-compare-v2-final-lists" data-release="lc-20261018-final-lists-1">
 <h1>Compare two lists, then hand off a checkable result</h1>
-<p class="task-note">This page performs one task: it compares two plain multi-line lists of strings in this browser, shows the differences under explicit rules, and prepares an editable plain-text handoff. Whether this task is useful to anyone is an open question this page does not answer.</p>
+<p class="task-note">This page performs one task: it compares two plain multi-line lists of strings in this browser, delivers three copyable final lists (only in A, only in B, common to both) under explicit rules, and prepares an editable plain-text handoff you can take away. Whether this task is useful to anyone is an open question this page does not answer.</p>
 
-<section class="acceptance" id="acceptance" data-role="acceptance">
-  <h2>Synthetic acceptance checks — expected vs actual</h2>
-  <p>These checks run in your browser on synthetic data that is declared before the implementation below. Every case shows the pre-declared expected value next to the actual value. These synthetic checks are not evidence of external use or demand.</p>
+<h2>Task workspace</h2>
+<div id="app-root"></div>
+
+<details class="acceptance" id="acceptance" data-role="acceptance">
+  <summary>Synthetic acceptance checks - expected vs actual (runs in this browser)</summary>
+  <p>These checks run in your browser on synthetic data that is declared before the implementation below. Every case shows the pre-declared expected value next to the actual value. These synthetic checks are not evidence of external use or demand. The same cases can be re-run without a browser from the downloadable file list-compare-checks.py.</p>
   <p class="gate" id="gate-status" data-role="gate-status" aria-live="polite"></p>
   <p><button type="button" id="rerun-checks" data-role="rerun-button">Run synthetic checks again</button></p>
   <h3>Production core checks (pure functions, no DOM)</h3>
   <div id="core-report" data-role="core-report"></div>
   <h3>Interface wiring checks (real DOM events on a temporary container)</h3>
   <div id="dom-report" data-role="dom-report"></div>
-</section>
-
-<h2>Task workspace</h2>
-<div id="app-root"></div>
+</details>
 
 <template id="app-template">
   <section class="app" data-role="app">
@@ -64,14 +71,24 @@
     </section>
     <div class="inputs">
       <div class="col">
-        <label>Left list (one string per line)
+        <label>List A (one string per line, order does not matter)
           <textarea data-role="left-input" rows="8" spellcheck="false"></textarea>
         </label>
       </div>
       <div class="col">
-        <label>Right list (one string per line)
+        <label>List B (one string per line, order does not matter)
           <textarea data-role="right-input" rows="8" spellcheck="false"></textarea>
         </label>
+      </div>
+    </div>
+    <div class="metadata">
+      <h3>Source and extraction time (for the handoff text)</h3>
+      <p class="hint">Each field is optional plain text, at most 2,000 characters. A blank field is reported as Unknown (not recorded). Nothing is filled in automatically: the extraction time is what you type, never the current clock.</p>
+      <div class="metagrid">
+        <label>A source description <input type="text" data-role="source-a" maxlength="2000"></label>
+        <label>A extraction time <input type="text" data-role="time-a" maxlength="2000"></label>
+        <label>B source description <input type="text" data-role="source-b" maxlength="2000"></label>
+        <label>B extraction time <input type="text" data-role="time-b" maxlength="2000"></label>
       </div>
     </div>
     <div class="options">
@@ -85,19 +102,25 @@
     </div>
     <p class="status" data-role="status" aria-live="polite"></p>
     <div class="stats">
+      <div class="statlabel">inputLines = blankLines + uniqueValues + duplicateExtraRows</div>
       <div data-role="left-stats"></div>
       <div data-role="right-stats"></div>
     </div>
-    <div class="results" data-role="results">
-      <section data-role="group-common"></section>
-      <section data-role="group-left-only"></section>
-      <section data-role="group-right-only"></section>
-    </div>
+    <div class="results" data-role="results"></div>
+    <details class="audit" data-role="audit-details">
+      <summary>Audit: original values and comparison keys</summary>
+      <div data-role="audit"></div>
+    </details>
     <div class="handoff">
+      <h3>Handoff text</h3>
+      <p class="hint">The handoff text is created only when you press Generate handoff, and only after a successful comparison. It is plain text and stays editable: copying never overwrites your edits. Changing the lists or the rules clears it; changing only the source fields above lets you generate it again while the lists above stay.</p>
+      <div class="buttons">
+        <button type="button" data-role="generate-button">Generate handoff</button>
+        <button type="button" data-role="copy-button">Copy edited handoff</button>
+      </div>
       <label>Handoff text (editable before copying)
         <textarea data-role="handoff-text" rows="12" spellcheck="false"></textarea>
       </label>
-      <button type="button" data-role="copy-button">Copy edited handoff</button>
     </div>
   </section>
 </template>
@@ -110,9 +133,9 @@
     "blanks": "A line that is empty or contains only ASCII spaces (U+0020) and tabs (U+0009) is always ignored as a value and counted as a blank line. Other Unicode whitespace is not treated as blank.",
     "trim": "Trim ASCII spaces/tabs at both ends: ON removes only leading and trailing ASCII spaces and tabs before comparing; OFF keeps them for comparison. Blank-line handling is unchanged.",
     "casef": "Case-sensitive: ON compares exact strings; OFF folds only ASCII A-Z to a-z (ASCII-only case folding; no general Unicode case folding or Unicode normalization).",
-    "dupes": "Rows with the same normalized key fold into one item, but every original line number, raw line, and occurrence count is kept on both sides.",
+    "dupes": "Rows with the same normalized key fold into one item, but every original line number, raw line, and occurrence count is kept on both sides. Duplicates are compared as unique values while their occurrence counts are preserved.",
     "zeros": "Leading zeros, punctuation, and inner spaces are kept: 001 is not 1, A-B is not A B. No numeric conversion, accent folding, full/half-width conversion, fuzzy matching, or identity judgment.",
-    "order": "Common items and left-only items follow the left first-seen order; right-only items follow the right first-seen order. Output is not alphabetically sorted.",
+    "order": "No pre-sorting is required or performed. Common items and left-only items follow the left first-seen order; right-only items follow the right first-seen order. Output is not alphabetically sorted.",
     "limits": "Limits: at most 200,000 JavaScript UTF-16 code units and 10,000 lines per side. Over the limit the tool shows an error and clears results; it never truncates or returns partial results.",
     "identity": "Matches mean equal strings under these rules, not the same person, customer, or product.",
     "privacy": "Your lists are compared in this browser. They are not uploaded or saved by this tool. Copying is your choice. The page loads the site's /s.css stylesheet; list contents are not included in that request."
@@ -138,7 +161,8 @@
         "rightOnly": [
           {"key": "y", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 1, "raw": "y", "normalized": "y"}]}},
           {"key": "1", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 3, "raw": "1", "normalized": "1"}]}}
-        ]
+        ],
+        "final": {"leftOnly": ["001", "x"], "rightOnly": ["y", "1"], "common": ["SKU-A "]}
       }
     },
     {
@@ -164,7 +188,8 @@
         "rightOnly": [
           {"key": "1", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 2, "raw": "1", "normalized": "1"}]}},
           {"key": "A B", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 6, "raw": "A B", "normalized": "A B"}]}}
-        ]
+        ],
+        "final": {"leftOnly": ["001", "A-B"], "rightOnly": ["1", "A B"], "common": ["beta", "Alpha", "A.B", "alpha"]}
       }
     },
     {
@@ -186,12 +211,13 @@
         "rightOnly": [
           {"key": "a", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 1, "raw": "a", "normalized": "a"}]}},
           {"key": "X", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 2, "raw": "X", "normalized": "X"}]}}
-        ]
+        ],
+        "final": {"leftOnly": ["x"], "rightOnly": ["a", "X"], "common": ["A"]}
       }
     },
     {
       "id": "F4",
-      "note": "Same input as F3 with ASCII-only case folding: keys fold, raw text is preserved.",
+      "note": "Same input as F3 with ASCII-only case folding: keys fold, raw text is preserved and the common list keeps A originals.",
       "left": "A\nx\nA",
       "right": "a\nX\nA",
       "options": {"trim": true, "caseSensitive": false},
@@ -204,7 +230,8 @@
           {"key": "x", "left": {"count": 1, "records": [{"line": 2, "raw": "x", "normalized": "x"}]}, "right": {"count": 1, "records": [{"line": 2, "raw": "X", "normalized": "X"}]}}
         ],
         "leftOnly": [],
-        "rightOnly": []
+        "rightOnly": [],
+        "final": {"leftOnly": [], "rightOnly": [], "common": ["A", "x"]}
       }
     },
     {
@@ -221,7 +248,8 @@
           {"key": "A", "left": {"count": 2, "records": [{"line": 1, "raw": " A ", "normalized": "A"}, {"line": 2, "raw": "A", "normalized": "A"}]}, "right": {"count": 2, "records": [{"line": 1, "raw": "A", "normalized": "A"}, {"line": 2, "raw": " A ", "normalized": "A"}]}}
         ],
         "leftOnly": [],
-        "rightOnly": []
+        "rightOnly": [],
+        "final": {"leftOnly": [], "rightOnly": [], "common": [" A "]}
       }
     },
     {
@@ -239,7 +267,8 @@
           {"key": "A", "left": {"count": 1, "records": [{"line": 2, "raw": "A", "normalized": "A"}]}, "right": {"count": 1, "records": [{"line": 1, "raw": "A", "normalized": "A"}]}}
         ],
         "leftOnly": [],
-        "rightOnly": []
+        "rightOnly": [],
+        "final": {"leftOnly": [], "rightOnly": [], "common": [" A ", "A"]}
       }
     },
     {
@@ -256,7 +285,8 @@
         "leftOnly": [],
         "rightOnly": [
           {"key": "q", "left": {"count": 0, "records": []}, "right": {"count": 2, "records": [{"line": 1, "raw": "q", "normalized": "q"}, {"line": 2, "raw": "q", "normalized": "q"}]}}
-        ]
+        ],
+        "final": {"leftOnly": [], "rightOnly": ["q"], "common": []}
       }
     },
     {
@@ -282,7 +312,8 @@
           {"key": "1", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 2, "raw": "1", "normalized": "1"}]}},
           {"key": "a b", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 3, "raw": "A B", "normalized": "A B"}]}},
           {"key": "\u00c9", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 4, "raw": "\u00c9", "normalized": "\u00c9"}]}}
-        ]
+        ],
+        "final": {"leftOnly": ["\u00e9", "0", "001", "A-B"], "rightOnly": ["1", "A B", "\u00c9"], "common": ["e\u0301"]}
       }
     },
     {
@@ -302,7 +333,8 @@
         "leftOnly": [
           {"key": "__proto__", "left": {"count": 1, "records": [{"line": 2, "raw": "__proto__", "normalized": "__proto__"}]}, "right": {"count": 0, "records": []}}
         ],
-        "rightOnly": []
+        "rightOnly": [],
+        "final": {"leftOnly": ["__proto__"], "rightOnly": [], "common": ["\u003cimg src=x onerror=alert(1)>", "constructor"]}
       }
     },
     {
@@ -320,6 +352,213 @@
       "right": "",
       "options": {"trim": true, "caseSensitive": true},
       "expected": {"expectedError": "TOO_MANY_LINES"}
+    },
+    {
+      "id": "N1",
+      "note": "Chinese values are kept exactly as typed in raw, key, and transfer text.",
+      "left": "\u5f20\u4e09\n\u674e\u56db\n\u5f20\u4e09",
+      "right": "\u738b\u4e94\n\u5f20\u4e09",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 3, "blankLines": 0, "validRows": 3, "uniqueValues": 2, "duplicateExtraRows": 1},
+        "rightStats": {"inputLines": 2, "blankLines": 0, "validRows": 2, "uniqueValues": 2, "duplicateExtraRows": 0},
+        "common": [
+          {"key": "\u5f20\u4e09", "left": {"count": 2, "records": [{"line": 1, "raw": "\u5f20\u4e09", "normalized": "\u5f20\u4e09"}, {"line": 3, "raw": "\u5f20\u4e09", "normalized": "\u5f20\u4e09"}]}, "right": {"count": 1, "records": [{"line": 2, "raw": "\u5f20\u4e09", "normalized": "\u5f20\u4e09"}]}}
+        ],
+        "leftOnly": [
+          {"key": "\u674e\u56db", "left": {"count": 1, "records": [{"line": 2, "raw": "\u674e\u56db", "normalized": "\u674e\u56db"}]}, "right": {"count": 0, "records": []}}
+        ],
+        "rightOnly": [
+          {"key": "\u738b\u4e94", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 1, "raw": "\u738b\u4e94", "normalized": "\u738b\u4e94"}]}}
+        ],
+        "final": {"leftOnly": ["\u674e\u56db"], "rightOnly": ["\u738b\u4e94"], "common": ["\u5f20\u4e09"]},
+        "transferContains": [
+          "BEGIN COMMON-A-ORIGINALS (original values, not comparison keys)\n\u5f20\u4e09\nEND COMMON-A-ORIGINALS",
+          "representative raw value: \"\u5f20\u4e09\"",
+          "comparison key: \"\u5f20\u4e09\""
+        ]
+      }
+    },
+    {
+      "id": "N2",
+      "note": "Full-width blank U+3000 is data, not an ASCII blank line and not trimmed.",
+      "left": "\u3000\u7532\u3000\n\u7532\n\u3000",
+      "right": "\u7532",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 3, "blankLines": 0, "validRows": 3, "uniqueValues": 3, "duplicateExtraRows": 0},
+        "rightStats": {"inputLines": 1, "blankLines": 0, "validRows": 1, "uniqueValues": 1, "duplicateExtraRows": 0},
+        "common": [
+          {"key": "\u7532", "left": {"count": 1, "records": [{"line": 2, "raw": "\u7532", "normalized": "\u7532"}]}, "right": {"count": 1, "records": [{"line": 1, "raw": "\u7532", "normalized": "\u7532"}]}}
+        ],
+        "leftOnly": [
+          {"key": "\u3000\u7532\u3000", "left": {"count": 1, "records": [{"line": 1, "raw": "\u3000\u7532\u3000", "normalized": "\u3000\u7532\u3000"}]}, "right": {"count": 0, "records": []}},
+          {"key": "\u3000", "left": {"count": 1, "records": [{"line": 3, "raw": "\u3000", "normalized": "\u3000"}]}, "right": {"count": 0, "records": []}}
+        ],
+        "rightOnly": [],
+        "final": {"leftOnly": ["\u3000\u7532\u3000", "\u3000"], "rightOnly": [], "common": ["\u7532"]},
+        "transferContains": [
+          "BEGIN ONLY-IN-A (original values, not comparison keys)\n\u3000\u7532\u3000\n\u3000\nEND ONLY-IN-A",
+          "representative raw value: \"\u3000\u7532\u3000\""
+        ]
+      }
+    },
+    {
+      "id": "N3",
+      "note": "Both sides empty: three empty final lists, zero statistics, a transfer with empty blocks and unknown sources.",
+      "left": "",
+      "right": "",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 0, "blankLines": 0, "validRows": 0, "uniqueValues": 0, "duplicateExtraRows": 0},
+        "rightStats": {"inputLines": 0, "blankLines": 0, "validRows": 0, "uniqueValues": 0, "duplicateExtraRows": 0},
+        "common": [],
+        "leftOnly": [],
+        "rightOnly": [],
+        "final": {"leftOnly": [], "rightOnly": [], "common": []},
+        "transferContains": [
+          "BEGIN ONLY-IN-A (original values, not comparison keys)\nEND ONLY-IN-A",
+          "BEGIN ONLY-IN-B (original values, not comparison keys)\nEND ONLY-IN-B",
+          "BEGIN COMMON-A-ORIGINALS (original values, not comparison keys)\nEND COMMON-A-ORIGINALS",
+          "A (left): 0 / 0 / 0 / 0 / 0",
+          "B (right): 0 / 0 / 0 / 0 / 0"
+        ],
+        "transferUnknownCount": 4
+      }
+    },
+    {
+      "id": "N4",
+      "note": "Only blank lines on one side: they are counted as blanks, no values.",
+      "left": " \n\t\n",
+      "right": "",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 3, "blankLines": 3, "validRows": 0, "uniqueValues": 0, "duplicateExtraRows": 0},
+        "rightStats": {"inputLines": 0, "blankLines": 0, "validRows": 0, "uniqueValues": 0, "duplicateExtraRows": 0},
+        "common": [],
+        "leftOnly": [],
+        "rightOnly": [],
+        "final": {"leftOnly": [], "rightOnly": [], "common": []}
+      }
+    },
+    {
+      "id": "N5",
+      "note": "Exactly at the length limit: 200000 code units in one line must succeed. Expected values are pre-declared projections, never copies of the large actual output.",
+      "leftRepeat": {"unit": "a", "times": 200000},
+      "right": "",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 1, "blankLines": 0, "validRows": 1, "uniqueValues": 1, "duplicateExtraRows": 0},
+        "rightStats": {"inputLines": 0, "blankLines": 0, "validRows": 0, "uniqueValues": 0, "duplicateExtraRows": 0},
+        "finalProject": {
+          "counts": {"leftOnly": 1, "rightOnly": 0, "common": 0},
+          "firstRaw": {"leftOnly": {"length": 200000, "char": "a"}},
+          "firstCount": {"leftOnly": 1}
+        }
+      }
+    },
+    {
+      "id": "N6",
+      "note": "Exactly at the line limit: 10000 lines of a must succeed with one unique value and 9999 duplicate rows.",
+      "leftRepeat": {"unit": "a\n", "times": 9999, "suffix": "a"},
+      "right": "",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 10000, "blankLines": 0, "validRows": 10000, "uniqueValues": 1, "duplicateExtraRows": 9999},
+        "rightStats": {"inputLines": 0, "blankLines": 0, "validRows": 0, "uniqueValues": 0, "duplicateExtraRows": 0},
+        "finalProject": {
+          "counts": {"leftOnly": 1, "rightOnly": 0, "common": 0},
+          "firstRaw": {"leftOnly": {"length": 1, "char": "a"}},
+          "firstCount": {"leftOnly": 10000}
+        }
+      }
+    },
+    {
+      "id": "N7",
+      "note": "Right side over the code-unit limit: the same error as on the left.",
+      "left": "",
+      "rightRepeat": {"unit": "a", "times": 200001},
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {"expectedError": "INPUT_TOO_LONG"}
+    },
+    {
+      "id": "N8",
+      "note": "Right side over the line limit: the same error as on the left.",
+      "left": "",
+      "rightRepeat": {"unit": "a\n", "times": 10000},
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {"expectedError": "TOO_MANY_LINES"}
+    },
+    {
+      "id": "T1",
+      "note": "Handoff metadata: blank fields are unknown; typed source and extraction time appear verbatim; no generation timestamp is produced.",
+      "left": "SKU-A \n001\nSKU-A \n\nx",
+      "right": "y\nSKU-A\n1",
+      "options": {"trim": true, "caseSensitive": true},
+      "metadata": {"sourceA": "Warehouse export A", "timeA": "2026-10-17 09:00 UTC", "sourceB": "", "timeB": ""},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 5, "blankLines": 1, "validRows": 4, "uniqueValues": 3, "duplicateExtraRows": 1},
+        "rightStats": {"inputLines": 3, "blankLines": 0, "validRows": 3, "uniqueValues": 3, "duplicateExtraRows": 0},
+        "common": [
+          {"key": "SKU-A", "left": {"count": 2, "records": [{"line": 1, "raw": "SKU-A ", "normalized": "SKU-A"}, {"line": 3, "raw": "SKU-A ", "normalized": "SKU-A"}]}, "right": {"count": 1, "records": [{"line": 2, "raw": "SKU-A", "normalized": "SKU-A"}]}}
+        ],
+        "leftOnly": [
+          {"key": "001", "left": {"count": 1, "records": [{"line": 2, "raw": "001", "normalized": "001"}]}, "right": {"count": 0, "records": []}},
+          {"key": "x", "left": {"count": 1, "records": [{"line": 5, "raw": "x", "normalized": "x"}]}, "right": {"count": 0, "records": []}}
+        ],
+        "rightOnly": [
+          {"key": "y", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 1, "raw": "y", "normalized": "y"}]}},
+          {"key": "1", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 3, "raw": "1", "normalized": "1"}]}}
+        ],
+        "final": {"leftOnly": ["001", "x"], "rightOnly": ["y", "1"], "common": ["SKU-A "]},
+        "transferContains": [
+          "A source description: Warehouse export A",
+          "A extraction time: 2026-10-17 09:00 UTC",
+          "B source description: Unknown (not recorded)",
+          "B extraction time: Unknown (not recorded)",
+          "BEGIN ONLY-IN-A (original values, not comparison keys)\n001\nx\nEND ONLY-IN-A",
+          "BEGIN COMMON-A-ORIGINALS (original values, not comparison keys)\nSKU-A \nEND COMMON-A-ORIGINALS",
+          "comparison key: \"SKU-A\""
+        ],
+        "transferNotContains": ["Generated at", "Generation time", "Generated on"]
+      }
+    },
+    {
+      "id": "T2",
+      "note": "Editing list A adds zzz: the re-computed final lists and counts change; the transfer text is only rebuilt on request.",
+      "left": "SKU-A \n001\nSKU-A \n\nx\nzzz",
+      "right": "y\nSKU-A\n1",
+      "options": {"trim": true, "caseSensitive": true},
+      "expected": {
+        "rules": {"trim": true, "caseSensitive": true, "texts": "@RULE_TEXTS"},
+        "leftStats": {"inputLines": 6, "blankLines": 1, "validRows": 5, "uniqueValues": 4, "duplicateExtraRows": 1},
+        "rightStats": {"inputLines": 3, "blankLines": 0, "validRows": 3, "uniqueValues": 3, "duplicateExtraRows": 0},
+        "common": [
+          {"key": "SKU-A", "left": {"count": 2, "records": [{"line": 1, "raw": "SKU-A ", "normalized": "SKU-A"}, {"line": 3, "raw": "SKU-A ", "normalized": "SKU-A"}]}, "right": {"count": 1, "records": [{"line": 2, "raw": "SKU-A", "normalized": "SKU-A"}]}}
+        ],
+        "leftOnly": [
+          {"key": "001", "left": {"count": 1, "records": [{"line": 2, "raw": "001", "normalized": "001"}]}, "right": {"count": 0, "records": []}},
+          {"key": "x", "left": {"count": 1, "records": [{"line": 5, "raw": "x", "normalized": "x"}]}, "right": {"count": 0, "records": []}},
+          {"key": "zzz", "left": {"count": 1, "records": [{"line": 6, "raw": "zzz", "normalized": "zzz"}]}, "right": {"count": 0, "records": []}}
+        ],
+        "rightOnly": [
+          {"key": "y", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 1, "raw": "y", "normalized": "y"}]}},
+          {"key": "1", "left": {"count": 0, "records": []}, "right": {"count": 1, "records": [{"line": 3, "raw": "1", "normalized": "1"}]}}
+        ],
+        "final": {"leftOnly": ["001", "x", "zzz"], "rightOnly": ["y", "1"], "common": ["SKU-A "]},
+        "transferContains": [
+          "BEGIN ONLY-IN-A (original values, not comparison keys)\n001\nx\nzzz\nEND ONLY-IN-A",
+          "A (left): 6 / 1 / 5 / 4 / 1"
+        ],
+        "transferUnknownCount": 4
+      }
     }
   ]
 }
@@ -329,6 +568,7 @@
 /* compare-core: pure functions only. No DOM, no network, no storage, no module loading. */
 var MAX_CODE_UNITS = 200000;
 var MAX_LINES = 10000;
+var METADATA_MAX = 2000;
 var BLANK_LINE_PATTERN = /^[ \t]*$/;
 var TRIM_PATTERN = /^[ \t]+|[ \t]+$/g;
 
@@ -338,9 +578,9 @@ var RULE_TEXTS = {
   blanks: "A line that is empty or contains only ASCII spaces (U+0020) and tabs (U+0009) is always ignored as a value and counted as a blank line. Other Unicode whitespace is not treated as blank.",
   trim: "Trim ASCII spaces/tabs at both ends: ON removes only leading and trailing ASCII spaces and tabs before comparing; OFF keeps them for comparison. Blank-line handling is unchanged.",
   casef: "Case-sensitive: ON compares exact strings; OFF folds only ASCII A-Z to a-z (ASCII-only case folding; no general Unicode case folding or Unicode normalization).",
-  dupes: "Rows with the same normalized key fold into one item, but every original line number, raw line, and occurrence count is kept on both sides.",
+  dupes: "Rows with the same normalized key fold into one item, but every original line number, raw line, and occurrence count is kept on both sides. Duplicates are compared as unique values while their occurrence counts are preserved.",
   zeros: "Leading zeros, punctuation, and inner spaces are kept: 001 is not 1, A-B is not A B. No numeric conversion, accent folding, full/half-width conversion, fuzzy matching, or identity judgment.",
-  order: "Common items and left-only items follow the left first-seen order; right-only items follow the right first-seen order. Output is not alphabetically sorted.",
+  order: "No pre-sorting is required or performed. Common items and left-only items follow the left first-seen order; right-only items follow the right first-seen order. Output is not alphabetically sorted.",
   limits: "Limits: at most 200,000 JavaScript UTF-16 code units and 10,000 lines per side. Over the limit the tool shows an error and clears results; it never truncates or returns partial results.",
   identity: "Matches mean equal strings under these rules, not the same person, customer, or product.",
   privacy: "Your lists are compared in this browser. They are not uploaded or saved by this tool. Copying is your choice. The page loads the site's /s.css stylesheet; list contents are not included in that request."
@@ -442,56 +682,84 @@ function compareLists(leftText, rightText, options) {
   };
 }
 
-function quoteRaw(s) {
-  return JSON.stringify(s);
+function finalLists(model) {
+  var out = { leftOnly: [], rightOnly: [], common: [] };
+  var i;
+  for (i = 0; i < model.leftOnly.length; i++) {
+    out.leftOnly.push(model.leftOnly[i].left.records[0].raw);
+  }
+  for (i = 0; i < model.rightOnly.length; i++) {
+    out.rightOnly.push(model.rightOnly[i].right.records[0].raw);
+  }
+  for (i = 0; i < model.common.length; i++) {
+    out.common.push(model.common[i].left.records[0].raw);
+  }
+  return out;
 }
 
 function statsTuple(s) {
   return s.inputLines + ' / ' + s.blankLines + ' / ' + s.validRows + ' / ' + s.uniqueValues + ' / ' + s.duplicateExtraRows;
 }
 
-function sideRefs(side) {
+function sideRefsNorm(side) {
   if (side.count === 0) {
     return '(none)';
   }
   var parts = [];
   for (var i = 0; i < side.records.length; i++) {
-    var rec = side.records[i];
-    parts.push('line ' + rec.line + ' raw ' + quoteRaw(rec.raw));
+    var r = side.records[i];
+    parts.push('line ' + r.line + ' raw ' + JSON.stringify(r.raw) + ' normalized ' + JSON.stringify(r.normalized));
   }
   return parts.join('; ');
 }
 
-function pushTransferGroup(lines, title, items) {
-  lines.push(title);
-  if (items.length === 0) {
-    lines.push('  None');
-    lines.push('');
-    return;
+function metadataValue(v) {
+  if (v === null || v === undefined) {
+    return 'Unknown (not recorded)';
   }
+  var s = String(v);
+  if (s.replace(/^[ \t]+|[ \t]+$/g, '') === '') {
+    return 'Unknown (not recorded)';
+  }
+  return s;
+}
+
+function pushBlock(lines, header, boundary, items) {
+  lines.push(header);
+  lines.push('BEGIN ' + boundary + ' (original values, not comparison keys)');
   for (var i = 0; i < items.length; i++) {
-    var item = items[i];
-    lines.push('  ' + (i + 1) + '. ' + quoteRaw(item.key));
-    lines.push('     left count ' + item.left.count + ': ' + sideRefs(item.left));
-    lines.push('     right count ' + item.right.count + ': ' + sideRefs(item.right));
+    lines.push(items[i]);
   }
+  lines.push('END ' + boundary);
   lines.push('');
 }
 
-function formatTransfer(model) {
+function formatTransfer(model, metadata) {
   var r = model.rules;
+  var fin = finalLists(model);
+  var md = metadata || {};
   var lines = [];
   lines.push('List comparison handoff');
-  lines.push('Tool: list-compare-v1 (string comparison only)');
+  lines.push('Tool: list-compare-v2-final-lists (string comparison only)');
+  lines.push('Tool page: https://intelligenism.com/zone001/list-compare.html (no list data is placed in any link)');
+  lines.push("Produced locally in the operator's browser at the operator's request. The extraction times below are what the operator recorded, not generation timestamps.");
   lines.push('');
+  lines.push('Source and extraction time:');
+  lines.push('- A source description: ' + metadataValue(md.sourceA));
+  lines.push('- A extraction time: ' + metadataValue(md.timeA));
+  lines.push('- B source description: ' + metadataValue(md.sourceB));
+  lines.push('- B extraction time: ' + metadataValue(md.timeB));
+  lines.push('');
+  lines.push('Comparison settings actually used for this run:');
   lines.push('- Trim ASCII spaces/tabs at both ends = ' + (r.trim ? 'ON' : 'OFF'));
   lines.push('- Case-sensitive = ' + (r.caseSensitive ? 'ON' : 'OFF'));
+  lines.push('');
   lines.push('Rules used for this run:');
-  lines.push('- ' + r.texts.trim);
-  lines.push('- ' + r.texts.casef);
   lines.push('- ' + r.texts.input);
   lines.push('- ' + r.texts.splitting);
   lines.push('- ' + r.texts.blanks);
+  lines.push('- ' + r.texts.trim);
+  lines.push('- ' + r.texts.casef);
   lines.push('- ' + r.texts.dupes);
   lines.push('- ' + r.texts.zeros);
   lines.push('- ' + r.texts.order);
@@ -499,12 +767,36 @@ function formatTransfer(model) {
   lines.push('- ' + r.texts.identity);
   lines.push('');
   lines.push('Counts (inputLines / blankLines / validRows / uniqueValues / duplicateExtraRows):');
-  lines.push('- Left: ' + statsTuple(model.leftStats));
-  lines.push('- Right: ' + statsTuple(model.rightStats));
+  lines.push('- inputLines = blankLines + uniqueValues + duplicateExtraRows');
+  lines.push('- A (left): ' + statsTuple(model.leftStats));
+  lines.push('- B (right): ' + statsTuple(model.rightStats));
   lines.push('');
-  pushTransferGroup(lines, 'Common items (left first-seen order): ' + model.common.length, model.common);
-  pushTransferGroup(lines, 'Only in left list (left first-seen order): ' + model.leftOnly.length, model.leftOnly);
-  pushTransferGroup(lines, 'Only in right list (right first-seen order): ' + model.rightOnly.length, model.rightOnly);
+  pushBlock(lines, 'Final list: only in A (left) - unique values: ' + fin.leftOnly.length, 'ONLY-IN-A', fin.leftOnly);
+  pushBlock(lines, 'Final list: only in B (right) - unique values: ' + fin.rightOnly.length, 'ONLY-IN-B', fin.rightOnly);
+  pushBlock(lines, 'Final list: common to both (A originals) - unique values: ' + fin.common.length, 'COMMON-A-ORIGINALS', fin.common);
+  lines.push('These three blocks list original representative values, one per line, not comparison keys. If a raw value itself contains one of these boundary words, the audit below (JSON-quoted raw values with line numbers) is the authoritative mapping.');
+  lines.push('');
+  lines.push('Audit: original values and comparison keys (authoritative)');
+  lines.push('Every item: comparison key, representative raw value, then every occurrence on both sides as line/raw/normalized with JSON quoting.');
+  var groups = [
+    { items: model.leftOnly, title: 'Only in A (left)' },
+    { items: model.rightOnly, title: 'Only in B (right)' },
+    { items: model.common, title: 'Common to both (A originals)' }
+  ];
+  for (var g = 0; g < groups.length; g++) {
+    var grp = groups[g];
+    for (var i = 0; i < grp.items.length; i++) {
+      var item = grp.items[i];
+      var rep = item.left.count > 0 ? item.left.records[0].raw : item.right.records[0].raw;
+      lines.push('');
+      lines.push('Item ' + (i + 1) + ' of ' + grp.items.length + ' (group: ' + grp.title + ')');
+      lines.push('- comparison key: ' + JSON.stringify(item.key));
+      lines.push('- representative raw value: ' + JSON.stringify(rep));
+      lines.push('- A count ' + item.left.count + ': ' + sideRefsNorm(item.left));
+      lines.push('- B count ' + item.right.count + ': ' + sideRefsNorm(item.right));
+    }
+  }
+  lines.push('');
   lines.push('Limitations: ' + r.texts.identity + ' ' + r.texts.privacy);
   return lines.join('\n');
 }
@@ -557,6 +849,9 @@ function expandFixtureInput(fx, side) {
     for (var i = 0; i < desc.times; i++) {
       out += desc.unit;
     }
+    if (desc.suffix) {
+      out += desc.suffix;
+    }
     return out;
   }
   return fx[side];
@@ -577,6 +872,25 @@ function pushAssertion(assertions, name, expected, actual, pass) {
     actual: typeof actual === 'string' ? actual : JSON.stringify(actual),
     pass: !!pass
   });
+}
+
+function pushStr(assertions, text, name, needle) {
+  var ok = text.indexOf(needle) >= 0;
+  pushAssertion(assertions, name, needle, ok ? 'found' : 'missing', ok);
+}
+
+function countOccurrences(text, needle) {
+  var n = 0;
+  var idx = 0;
+  while (true) {
+    idx = text.indexOf(needle, idx);
+    if (idx < 0) {
+      break;
+    }
+    n++;
+    idx += needle.length;
+  }
+  return n;
 }
 
 function collectKeys(items) {
@@ -627,23 +941,78 @@ function pushInvariantAssertions(assertions, model) {
 }
 
 function pushTransferAssertions(assertions, model, fx) {
-  var text = formatTransfer(model);
+  var text = formatTransfer(model, fx.metadata || null);
   if (fx.id === 'F1') {
-    pushAssertion(assertions, 'transfer shows both left SKU-A raw lines with trailing space', 'left count 2: line 1 raw "SKU-A "; line 3 raw "SKU-A "', text.indexOf('left count 2: line 1 raw "SKU-A "; line 3 raw "SKU-A "') >= 0 ? 'found' : 'missing', text.indexOf('left count 2: line 1 raw "SKU-A "; line 3 raw "SKU-A "') >= 0);
-    pushAssertion(assertions, 'transfer shows the right SKU-A source line', 'right count 1: line 2 raw "SKU-A"', text.indexOf('right count 1: line 2 raw "SKU-A"') >= 0 ? 'found' : 'missing', text.indexOf('right count 1: line 2 raw "SKU-A"') >= 0);
-    pushAssertion(assertions, 'transfer keeps 001 and 1 as separate items', 'both "  1. \\"001\\"" and "  2. \\"1\\"" present', (text.indexOf('  1. "001"') >= 0 && text.indexOf('  2. "1"') >= 0) ? 'both found' : 'missing', text.indexOf('  1. "001"') >= 0 && text.indexOf('  2. "1"') >= 0);
-    pushAssertion(assertions, 'transfer shows trailing space inside JSON-style quotes', 'raw "SKU-A " with a space before the closing quote', text.indexOf('raw "SKU-A "') >= 0 ? 'found' : 'missing', text.indexOf('raw "SKU-A "') >= 0);
-    pushAssertion(assertions, 'transfer states the trim switch used', 'Trim ASCII spaces/tabs at both ends = ON', text.indexOf('Trim ASCII spaces/tabs at both ends = ON') >= 0 ? 'found' : 'missing', text.indexOf('Trim ASCII spaces/tabs at both ends = ON') >= 0);
-    pushAssertion(assertions, 'transfer states the case switch used', 'Case-sensitive = ON', text.indexOf('Case-sensitive = ON') >= 0 ? 'found' : 'missing', text.indexOf('Case-sensitive = ON') >= 0);
-    pushAssertion(assertions, 'transfer carries the identity limitation', 'not the same person, customer, or product', text.indexOf('not the same person, customer, or product') >= 0 ? 'found' : 'missing', text.indexOf('not the same person, customer, or product') >= 0);
-    pushAssertion(assertions, 'transfer carries the Unicode limitation', 'no general Unicode case folding or Unicode normalization', text.indexOf('no general Unicode case folding or Unicode normalization') >= 0 ? 'found' : 'missing', text.indexOf('no general Unicode case folding or Unicode normalization') >= 0);
-    pushAssertion(assertions, 'transfer carries both side counts', 'Left: 5 / 1 / 4 / 3 / 1 and Right: 3 / 0 / 3 / 3 / 0', (text.indexOf('Left: 5 / 1 / 4 / 3 / 1') >= 0 && text.indexOf('Right: 3 / 0 / 3 / 3 / 0') >= 0) ? 'both found' : 'missing', (text.indexOf('Left: 5 / 1 / 4 / 3 / 1') >= 0 && text.indexOf('Right: 3 / 0 / 3 / 3 / 0') >= 0));
+    pushStr(assertions, text, 'transfer carries the only-in-A block with original values', 'BEGIN ONLY-IN-A (original values, not comparison keys)\n001\nx\nEND ONLY-IN-A');
+    pushStr(assertions, text, 'transfer carries the only-in-B block with original values', 'BEGIN ONLY-IN-B (original values, not comparison keys)\ny\n1\nEND ONLY-IN-B');
+    pushStr(assertions, text, 'transfer carries the common block with the trailing space preserved', 'BEGIN COMMON-A-ORIGINALS (original values, not comparison keys)\nSKU-A \nEND COMMON-A-ORIGINALS');
+    pushStr(assertions, text, 'transfer audit shows both A SKU-A occurrences', 'A count 2: line 1 raw "SKU-A " normalized "SKU-A"; line 3 raw "SKU-A " normalized "SKU-A"');
+    pushStr(assertions, text, 'transfer audit shows the B SKU-A occurrence', 'B count 1: line 2 raw "SKU-A" normalized "SKU-A"');
+    pushStr(assertions, text, 'transfer audit labels the comparison key', 'comparison key: "SKU-A"');
+    pushStr(assertions, text, 'transfer states the trim setting used', 'Trim ASCII spaces/tabs at both ends = ON');
+    pushStr(assertions, text, 'transfer states the case setting used', 'Case-sensitive = ON');
+    pushStr(assertions, text, 'transfer carries the left counts', 'A (left): 5 / 1 / 4 / 3 / 1');
+    pushStr(assertions, text, 'transfer carries the right counts', 'B (right): 3 / 0 / 3 / 3 / 0');
+    pushStr(assertions, text, 'transfer carries the identity limitation', 'not the same person, customer, or product');
+    pushStr(assertions, text, 'transfer carries the Unicode limitation', 'no general Unicode case folding or Unicode normalization');
+    var unknowns = countOccurrences(text, 'Unknown (not recorded)');
+    pushAssertion(assertions, 'blank metadata is reported as unknown four times', '4', String(unknowns), unknowns === 4);
   }
   if (fx.id === 'F4' || fx.id === 'F6') {
     var expectedCase = fx.options.caseSensitive ? 'ON' : 'OFF';
     var expectedTrim = fx.options.trim ? 'ON' : 'OFF';
-    pushAssertion(assertions, 'transfer rule values follow the options of this run', 'Trim ASCII spaces/tabs at both ends = ' + expectedTrim + ' and Case-sensitive = ' + expectedCase, (text.indexOf('Trim ASCII spaces/tabs at both ends = ' + expectedTrim) >= 0 && text.indexOf('Case-sensitive = ' + expectedCase) >= 0) ? 'both found' : 'missing', (text.indexOf('Trim ASCII spaces/tabs at both ends = ' + expectedTrim) >= 0 && text.indexOf('Case-sensitive = ' + expectedCase) >= 0));
+    var both = text.indexOf('Trim ASCII spaces/tabs at both ends = ' + expectedTrim) >= 0 && text.indexOf('Case-sensitive = ' + expectedCase) >= 0;
+    pushAssertion(assertions, 'transfer rule values follow the options of this run', 'Trim ASCII spaces/tabs at both ends = ' + expectedTrim + ' and Case-sensitive = ' + expectedCase, both ? 'both found' : 'missing', both);
   }
+  var exp = fx.expected || {};
+  if (exp.transferContains) {
+    for (var i = 0; i < exp.transferContains.length; i++) {
+      pushStr(assertions, text, 'transfer contains: ' + JSON.stringify(exp.transferContains[i]).slice(0, 80), exp.transferContains[i]);
+    }
+  }
+  if (exp.transferNotContains) {
+    for (var j = 0; j < exp.transferNotContains.length; j++) {
+      var needle = exp.transferNotContains[j];
+      var absent = text.indexOf(needle) < 0;
+      pushAssertion(assertions, 'transfer must not contain: ' + needle, 'absent', absent ? 'absent' : 'present', absent);
+    }
+  }
+  if (typeof exp.transferUnknownCount === 'number') {
+    var n = countOccurrences(text, 'Unknown (not recorded)');
+    pushAssertion(assertions, 'unknown-metadata marker count', String(exp.transferUnknownCount), String(n), n === exp.transferUnknownCount);
+  }
+}
+
+function pushFinalAssertions(assertions, model, expected) {
+  if (expected.finalProject) {
+    var pc = expected.finalProject;
+    var fin = finalLists(model);
+    var groups = ['leftOnly', 'rightOnly', 'common'];
+    for (var g = 0; g < groups.length; g++) {
+      var name = groups[g];
+      if (pc.counts && typeof pc.counts[name] === 'number') {
+        pushAssertion(assertions, 'final ' + name + ' item count', String(pc.counts[name]), String(fin[name].length), fin[name].length === pc.counts[name]);
+      }
+      if (pc.firstRaw && pc.firstRaw[name]) {
+        var spec = pc.firstRaw[name];
+        var arr = fin[name];
+        var okLen = arr.length > 0 && arr[0].length === spec.length;
+        var okChar = okLen && arr[0] === new Array(spec.length + 1).join(spec.char);
+        pushAssertion(assertions, 'final ' + name + ' first raw length', String(spec.length), String(arr.length > 0 ? arr[0].length : -1), okLen);
+        pushAssertion(assertions, 'final ' + name + ' first raw is the declared repeated character', spec.char + ' repeated ' + spec.length + ' times', okChar ? 'matches' : 'differs', okChar);
+      }
+      if (pc.firstCount && typeof pc.firstCount[name] === 'number') {
+        var items = name === 'leftOnly' ? model.leftOnly : (name === 'rightOnly' ? model.rightOnly : model.common);
+        var cnt = -1;
+        if (items.length > 0) {
+          cnt = name === 'rightOnly' ? items[0].right.count : items[0].left.count;
+        }
+        pushAssertion(assertions, 'final ' + name + ' first item occurrence count', String(pc.firstCount[name]), String(cnt), cnt === pc.firstCount[name]);
+      }
+    }
+    return;
+  }
+  pushAssertion(assertions, 'final lists (original values, not keys) match in order', JSON.stringify(expected.final), JSON.stringify(finalLists(model)), deepEqual(finalLists(model), expected.final));
 }
 
 function runOneCase(fx, ruleTexts) {
@@ -667,16 +1036,31 @@ function runOneCase(fx, ruleTexts) {
     actual = { thrown: thrown, error: model && model.error ? model.error : null };
     pushAssertion(assertions, 'comparison completed without error', 'model without error', JSON.stringify(actual), false);
   } else {
-    actual = model;
     pushAssertion(assertions, 'core rule texts equal the pre-declared rule texts', JSON.stringify(ruleTexts), JSON.stringify(RULE_TEXTS), deepEqual(RULE_TEXTS, ruleTexts));
     pushAssertion(assertions, 'rules object matches the pre-declared rules', JSON.stringify(expected.rules), JSON.stringify(model.rules), deepEqual(model.rules, expected.rules));
     pushAssertion(assertions, 'left stats tuple matches', JSON.stringify(expected.leftStats), JSON.stringify(model.leftStats), deepEqual(model.leftStats, expected.leftStats));
     pushAssertion(assertions, 'right stats tuple matches', JSON.stringify(expected.rightStats), JSON.stringify(model.rightStats), deepEqual(model.rightStats, expected.rightStats));
-    pushAssertion(assertions, 'common group matches in order, counts, and records', JSON.stringify(expected.common), JSON.stringify(model.common), deepEqual(model.common, expected.common));
-    pushAssertion(assertions, 'left-only group matches in order, counts, and records', JSON.stringify(expected.leftOnly), JSON.stringify(model.leftOnly), deepEqual(model.leftOnly, expected.leftOnly));
-    pushAssertion(assertions, 'right-only group matches in order, counts, and records', JSON.stringify(expected.rightOnly), JSON.stringify(model.rightOnly), deepEqual(model.rightOnly, expected.rightOnly));
+    if (expected.finalProject) {
+      actual = {
+        leftStats: model.leftStats,
+        rightStats: model.rightStats,
+        finalProjection: {
+          leftOnly: model.leftOnly.length,
+          rightOnly: model.rightOnly.length,
+          common: model.common.length
+        }
+      };
+    } else {
+      actual = model;
+      pushAssertion(assertions, 'common group matches in order, counts, and records', JSON.stringify(expected.common), JSON.stringify(model.common), deepEqual(model.common, expected.common));
+      pushAssertion(assertions, 'left-only group matches in order, counts, and records', JSON.stringify(expected.leftOnly), JSON.stringify(model.leftOnly), deepEqual(model.leftOnly, expected.leftOnly));
+      pushAssertion(assertions, 'right-only group matches in order, counts, and records', JSON.stringify(expected.rightOnly), JSON.stringify(model.rightOnly), deepEqual(model.rightOnly, expected.rightOnly));
+    }
+    pushFinalAssertions(assertions, model, expected);
     pushInvariantAssertions(assertions, model);
-    pushTransferAssertions(assertions, model, fx);
+    if (!expected.finalProject) {
+      pushTransferAssertions(assertions, model, fx);
+    }
   }
   var pass = assertions.length > 0;
   for (var i = 0; i < assertions.length; i++) {
@@ -690,7 +1074,7 @@ function runOneCase(fx, ruleTexts) {
 function runAcceptanceTests(fixtures) {
   var cases = Array.isArray(fixtures) ? fixtures : fixtures.cases;
   var ruleTexts = Array.isArray(fixtures) ? RULE_TEXTS : fixtures.ruleTexts;
-  var report = { schemaVersion: 1, passed: true, cases: [] };
+  var report = { schemaVersion: 2, passed: true, cases: [] };
   for (var i = 0; i < cases.length; i++) {
     var caseReport = runOneCase(cases[i], ruleTexts);
     if (!caseReport.pass) {
@@ -725,17 +1109,23 @@ function statsLine(s) {
   return 'input lines ' + s.inputLines + ', blank lines ' + s.blankLines + ', valid non-blank rows ' + s.validRows + ', unique values ' + s.uniqueValues + ', duplicate extra rows ' + s.duplicateExtraRows;
 }
 
-function refsLine(side) {
+function auditRefs(side) {
   if (side.count === 0) {
     return '(none)';
   }
   var parts = [];
   for (var i = 0; i < side.records.length; i++) {
     var r = side.records[i];
-    parts.push('line ' + r.line + ' raw ' + JSON.stringify(r.raw));
+    parts.push('line ' + r.line + ' raw ' + JSON.stringify(r.raw) + ' normalized ' + JSON.stringify(r.normalized));
   }
   return parts.join('; ');
 }
+
+var FINAL_GROUPS = [
+  { listKey: 'leftOnly', role: 'final-left-only', title: 'Final list: only in A (left), left first-seen order' },
+  { listKey: 'rightOnly', role: 'final-right-only', title: 'Final list: only in B (right), right first-seen order' },
+  { listKey: 'common', role: 'final-common', title: 'Final list: common to both (A originals), left first-seen order' }
+];
 
 function createComparisonApp(root, deps) {
   var doc = root.ownerDocument || document;
@@ -747,24 +1137,27 @@ function createComparisonApp(root, deps) {
   var els = {
     leftInput: q('left-input'),
     rightInput: q('right-input'),
+    sourceA: q('source-a'),
+    timeA: q('time-a'),
+    sourceB: q('source-b'),
+    timeB: q('time-b'),
     trimOption: q('trim-option'),
     caseOption: q('case-option'),
     compareButton: q('compare-button'),
     loadExampleButton: q('load-example-button'),
     clearButton: q('clear-button'),
+    generateButton: q('generate-button'),
+    copyButton: q('copy-button'),
     status: q('status'),
     leftStats: q('left-stats'),
     rightStats: q('right-stats'),
     results: q('results'),
-    groupCommon: q('group-common'),
-    groupLeftOnly: q('group-left-only'),
-    groupRightOnly: q('group-right-only'),
+    audit: q('audit'),
     handoff: q('handoff-text'),
-    copyButton: q('copy-button'),
     rulesList: q('rules-list'),
     privacy: q('privacy')
   };
-  var clipboard = (deps && deps.clipboard) ? deps.clipboard : navigator.clipboard;
+  var clipboard = (deps && deps.clipboard !== undefined) ? deps.clipboard : navigator.clipboard;
   var state = { model: null };
   var ruleOrder = ['input', 'splitting', 'blanks', 'trim', 'casef', 'dupes', 'zeros', 'order', 'limits', 'identity'];
   for (var ri = 0; ri < ruleOrder.length; ri++) {
@@ -777,52 +1170,145 @@ function createComparisonApp(root, deps) {
     els.status.className = 'status ' + (kind || '');
   }
 
-  function renderGroup(title, items, container) {
-    container.textContent = '';
-    container.appendChild(mkNode(doc, 'h4', null, title + ' (' + items.length + ')'));
-    if (items.length === 0) {
-      container.appendChild(mkNode(doc, 'p', { className: 'none' }, 'None'));
+  function selectText(textarea) {
+    textarea.focus();
+    textarea.select();
+  }
+
+  function copyText(text, textarea, okMessage) {
+    if (!clipboard || !clipboard.writeText) {
+      selectText(textarea);
+      setStatus('Clipboard access is unavailable here. The text is selected - use Ctrl/Cmd+C.', 'warn');
       return;
     }
-    var list = mkNode(doc, 'ol', null);
-    for (var i = 0; i < items.length; i++) {
-      var item = items[i];
-      var li = mkNode(doc, 'li', null);
-      li.appendChild(mkNode(doc, 'span', { className: 'item-key' }, JSON.stringify(item.key)));
-      li.appendChild(mkNode(doc, 'div', { className: 'refs' }, 'left count ' + item.left.count + ': ' + refsLine(item.left)));
-      li.appendChild(mkNode(doc, 'div', { className: 'refs' }, 'right count ' + item.right.count + ': ' + refsLine(item.right)));
-      list.appendChild(li);
+    var pending;
+    try {
+      pending = clipboard.writeText(text);
+    } catch (e) {
+      selectText(textarea);
+      setStatus('Clipboard write threw an error. The text is selected - use Ctrl/Cmd+C.', 'warn');
+      return;
     }
-    container.appendChild(list);
+    if (pending && pending.then) {
+      pending.then(function () {
+        setStatus(okMessage, 'ok');
+      }, function () {
+        selectText(textarea);
+        setStatus('Clipboard write was refused. The text is selected - use Ctrl/Cmd+C.', 'warn');
+      });
+    } else {
+      setStatus(okMessage, 'ok');
+    }
+  }
+
+  function renderAudit(model) {
+    els.audit.textContent = '';
+    if (!model) {
+      return;
+    }
+    var groups = [
+      { items: model.leftOnly, title: 'Only in A (left)' },
+      { items: model.rightOnly, title: 'Only in B (right)' },
+      { items: model.common, title: 'Common to both (A originals)' }
+    ];
+    var idx = 0;
+    for (var g = 0; g < groups.length; g++) {
+      var grp = groups[g];
+      els.audit.appendChild(mkNode(doc, 'h4', null, grp.title + ' (' + grp.items.length + ')'));
+      if (grp.items.length === 0) {
+        els.audit.appendChild(mkNode(doc, 'p', { className: 'none' }, 'No items.'));
+        continue;
+      }
+      for (var i = 0; i < grp.items.length; i++) {
+        idx++;
+        var item = grp.items[i];
+        var rep = item.left.count > 0 ? item.left.records[0].raw : item.right.records[0].raw;
+        els.audit.appendChild(mkNode(doc, 'p', { className: 'audititem' }, 'Item ' + idx + ' - comparison key: ' + JSON.stringify(item.key)));
+        els.audit.appendChild(mkNode(doc, 'p', null, 'representative raw value: ' + JSON.stringify(rep)));
+        els.audit.appendChild(mkNode(doc, 'p', { className: 'refs' }, 'A count ' + item.left.count + ': ' + auditRefs(item.left)));
+        els.audit.appendChild(mkNode(doc, 'p', { className: 'refs' }, 'B count ' + item.right.count + ': ' + auditRefs(item.right)));
+      }
+    }
+    els.audit.appendChild(mkNode(doc, 'p', { className: 'hint' }, 'The comparison key is what the rules reduce a value to; raw values keep their original text including leading zeros, punctuation, and inner or trailing spaces. If a raw value itself contains a boundary word from the handoff blocks, this audit (JSON-quoted raw values with line numbers) is the authoritative mapping.'));
   }
 
   function renderResults(model) {
     els.results.textContent = '';
+    els.audit.textContent = '';
     if (!model) {
       els.leftStats.textContent = '';
       els.rightStats.textContent = '';
       els.results.appendChild(mkNode(doc, 'p', { className: 'placeholder' }, 'No comparison result yet.'));
-      els.results.appendChild(mkNode(doc, 'section', { 'data-role': 'group-common' }));
-      els.results.appendChild(mkNode(doc, 'section', { 'data-role': 'group-left-only' }));
-      els.results.appendChild(mkNode(doc, 'section', { 'data-role': 'group-right-only' }));
-      els.groupCommon = els.results.querySelector('[data-role="group-common"]');
-      els.groupLeftOnly = els.results.querySelector('[data-role="group-left-only"]');
-      els.groupRightOnly = els.results.querySelector('[data-role="group-right-only"]');
       return;
     }
-    els.leftStats.textContent = 'Left: ' + statsLine(model.leftStats);
-    els.rightStats.textContent = 'Right: ' + statsLine(model.rightStats);
-    renderGroup('Common items', model.common, els.groupCommon);
-    renderGroup('Only in left list', model.leftOnly, els.groupLeftOnly);
-    renderGroup('Only in right list', model.rightOnly, els.groupRightOnly);
+    els.leftStats.textContent = 'A (left): ' + statsLine(model.leftStats);
+    els.rightStats.textContent = 'B (right): ' + statsLine(model.rightStats);
+    var fin = finalLists(model);
+    for (var g = 0; g < FINAL_GROUPS.length; g++) {
+      var spec = FINAL_GROUPS[g];
+      var items = fin[spec.listKey];
+      var sec = mkNode(doc, 'section', { 'data-role': spec.role });
+      sec.appendChild(mkNode(doc, 'h4', null, spec.title + ' (' + items.length + ' unique values)'));
+      if (items.length === 0) {
+        sec.appendChild(mkNode(doc, 'p', { className: 'none' }, 'No items (0)'));
+      }
+      var ta = doc.createElement('textarea');
+      ta.className = 'finallist';
+      ta.readOnly = true;
+      ta.setAttribute('rows', String(Math.min(Math.max(items.length, 1), 12)));
+      ta.setAttribute('spellcheck', 'false');
+      ta.setAttribute('data-role', spec.role + '-text');
+      ta.value = items.join('\n');
+      sec.appendChild(ta);
+      var btn = mkNode(doc, 'button', { type: 'button', 'data-role': 'copy-' + spec.role }, 'Copy list');
+      (function (textarea) {
+        btn.addEventListener('click', function () {
+          copyText(textarea.value, textarea, 'List copied to the clipboard.');
+        });
+      })(ta);
+      sec.appendChild(btn);
+      sec.appendChild(mkNode(doc, 'p', { className: 'hint' }, 'Original values (the first raw value seen for each item), one per line. These are not comparison keys.'));
+      els.results.appendChild(sec);
+    }
+    renderAudit(model);
   }
 
   function markStale() {
     state.model = null;
     renderResults(null);
     els.handoff.value = '';
+    els.generateButton.disabled = true;
     els.copyButton.disabled = true;
     setStatus('Inputs or rules changed. Compare again.', 'warn');
+  }
+
+  function markHandoffStale() {
+    els.handoff.value = '';
+    els.copyButton.disabled = true;
+    if (state.model) {
+      els.generateButton.disabled = false;
+      setStatus('Handoff metadata changed. Generate the handoff again. The lists above are still current.', 'warn');
+    }
+  }
+
+  function metadataValues() {
+    return {
+      sourceA: els.sourceA.value,
+      timeA: els.timeA.value,
+      sourceB: els.sourceB.value,
+      timeB: els.timeB.value
+    };
+  }
+
+  function metadataTooLong() {
+    var md = metadataValues();
+    var names = ['sourceA', 'timeA', 'sourceB', 'timeB'];
+    for (var i = 0; i < names.length; i++) {
+      if (md[names[i]].length > METADATA_MAX) {
+        return names[i];
+      }
+    }
+    return null;
   }
 
   function doCompare() {
@@ -834,15 +1320,33 @@ function createComparisonApp(root, deps) {
       state.model = null;
       renderResults(null);
       els.handoff.value = '';
+      els.generateButton.disabled = true;
       els.copyButton.disabled = true;
       setStatus(model.error.code + ': ' + model.error.message, 'error');
       return;
     }
     state.model = model;
     renderResults(model);
-    els.handoff.value = formatTransfer(model);
+    els.handoff.value = '';
+    els.generateButton.disabled = false;
+    els.copyButton.disabled = true;
+    setStatus('Compared under the rules shown above. The final lists are below. Generate the handoff when you want to take the result away.', 'ok');
+  }
+
+  function doGenerate() {
+    if (!state.model) {
+      return;
+    }
+    var bad = metadataTooLong();
+    if (bad) {
+      els.handoff.value = '';
+      els.copyButton.disabled = true;
+      setStatus('A metadata field is over 2,000 characters (' + bad + '). Shorten it; nothing was generated and the previous handoff text was cleared.', 'error');
+      return;
+    }
+    els.handoff.value = formatTransfer(state.model, metadataValues());
     els.copyButton.disabled = false;
-    setStatus('Compared under the rules shown above. The handoff text is editable before copying.', 'ok');
+    setStatus('Handoff generated from the current lists and metadata. You can edit the text before copying.', 'ok');
   }
 
   function fixtureById(id) {
@@ -863,52 +1367,34 @@ function createComparisonApp(root, deps) {
     els.rightInput.value = f1.right;
     els.trimOption.checked = true;
     els.caseOption.checked = true;
-    state.model = null;
-    renderResults(null);
-    els.handoff.value = '';
-    els.copyButton.disabled = true;
+    markStale();
     setStatus('Synthetic example F1 loaded into the inputs (synthetic data, not a real list). It is not compared yet.', 'warn');
   }
 
   function doClear() {
     els.leftInput.value = '';
     els.rightInput.value = '';
+    els.sourceA.value = '';
+    els.timeA.value = '';
+    els.sourceB.value = '';
+    els.timeB.value = '';
     state.model = null;
     renderResults(null);
     els.handoff.value = '';
+    els.generateButton.disabled = true;
     els.copyButton.disabled = true;
     setStatus('Cleared. This tool keeps nothing.', 'ok');
   }
 
-  function selectHandoff() {
-    els.handoff.focus();
-    els.handoff.select();
-  }
-
-  function doCopy() {
-    var text = els.handoff.value;
-    if (!clipboard || !clipboard.writeText) {
-      selectHandoff();
-      setStatus('Clipboard access is unavailable here. The handoff text is selected - use Ctrl/Cmd+C.', 'warn');
-      return;
-    }
-    var pending = clipboard.writeText(text);
-    if (pending && pending.then) {
-      pending.then(function () {
-        setStatus('Handoff text copied to the clipboard.', 'ok');
-      }, function () {
-        selectHandoff();
-        setStatus('Clipboard write was refused. The handoff text is selected - use Ctrl/Cmd+C.', 'warn');
-      });
-    } else {
-      setStatus('Handoff text copied to the clipboard.', 'ok');
-    }
+  function doCopyHandoff() {
+    copyText(els.handoff.value, els.handoff, 'Handoff text copied to the clipboard.');
   }
 
   function setControlsEnabled(enabled) {
     els.compareButton.disabled = !enabled;
     els.loadExampleButton.disabled = !enabled;
     els.clearButton.disabled = !enabled;
+    els.generateButton.disabled = !enabled;
     if (!enabled) {
       els.copyButton.disabled = true;
     }
@@ -918,10 +1404,15 @@ function createComparisonApp(root, deps) {
   els.rightInput.addEventListener('input', markStale);
   els.trimOption.addEventListener('change', markStale);
   els.caseOption.addEventListener('change', markStale);
+  els.sourceA.addEventListener('input', markHandoffStale);
+  els.timeA.addEventListener('input', markHandoffStale);
+  els.sourceB.addEventListener('input', markHandoffStale);
+  els.timeB.addEventListener('input', markHandoffStale);
   els.compareButton.addEventListener('click', doCompare);
+  els.generateButton.addEventListener('click', doGenerate);
   els.loadExampleButton.addEventListener('click', doLoadExample);
   els.clearButton.addEventListener('click', doClear);
-  els.copyButton.addEventListener('click', doCopy);
+  els.copyButton.addEventListener('click', doCopyHandoff);
 
   renderResults(null);
   setStatus('Load or type two lists, then compare. Nothing is uploaded or saved.', 'ok');
@@ -931,7 +1422,8 @@ function createComparisonApp(root, deps) {
     compare: doCompare,
     clear: doClear,
     loadExample: doLoadExample,
-    copy: doCopy,
+    generate: doGenerate,
+    copy: doCopyHandoff,
     setControlsEnabled: setControlsEnabled
   };
 }
@@ -942,7 +1434,7 @@ function runDomTests(fixtures) {
   for (var ci = 0; ci < cases.length; ci++) {
     byId[cases[ci].id] = cases[ci];
   }
-  var report = { schemaVersion: 1, passed: true, cases: [] };
+  var report = { schemaVersion: 2, passed: true, cases: [] };
 
   function push(assertions, name, expected, actual, pass) {
     assertions.push({ name: name, expected: String(expected), actual: String(actual), pass: !!pass });
@@ -973,20 +1465,42 @@ function runDomTests(fixtures) {
     });
   }
 
-  function withApp(body) {
+  function withApp(body, opts) {
     var container = document.createElement('div');
     document.body.appendChild(container);
-    var capture = { text: null, writes: 0 };
-    var fakeClipboard = {
-      writeText: function (text) {
-        capture.text = text;
-        capture.writes = capture.writes + 1;
-        return { then: function (ok) { if (ok) { ok(); return this; } return this; } };
-      }
-    };
+    var capture = { texts: [], writes: 0 };
+    var mode = (opts && opts.clipboard) || 'ok';
+    var fakeClipboard;
+    if (mode === 'ok') {
+      fakeClipboard = {
+        writeText: function (text) {
+          capture.texts.push(text);
+          capture.writes = capture.writes + 1;
+          return { then: function (ok) { if (ok) { ok(); } return this; } };
+        }
+      };
+    } else if (mode === 'reject') {
+      fakeClipboard = {
+        writeText: function (text) {
+          capture.texts.push(text);
+          capture.writes = capture.writes + 1;
+          return { then: function (ok, fail) { if (fail) { fail(); } return this; } };
+        }
+      };
+    } else if (mode === 'throw') {
+      fakeClipboard = {
+        writeText: function (text) {
+          capture.texts.push(text);
+          capture.writes = capture.writes + 1;
+          throw new Error('stub refusal');
+        }
+      };
+    } else {
+      fakeClipboard = null;
+    }
     try {
       var app = createComparisonApp(container, { clipboard: fakeClipboard });
-      body(app, app.elements, capture);
+      body(app, app.elements, capture, container);
     } finally {
       document.body.removeChild(container);
     }
@@ -1002,132 +1516,196 @@ function runDomTests(fixtures) {
     box.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  function keysOf(container) {
-    var nodes = container.querySelectorAll('.item-key');
-    var out = [];
-    for (var i = 0; i < nodes.length; i++) {
-      out.push(nodes[i].textContent);
-    }
-    return out.join(', ');
+  function finalText(root, role) {
+    var ta = root.querySelector('[data-role="' + role + '-text"]');
+    return ta ? ta.value : null;
   }
 
-  addCase('D1-F1-rendered-dom', function (assertions) {
-    withApp(function (app, els) {
+  addCase('D1-F1-final-lists-and-audit', function (assertions) {
+    withApp(function (app, els, capture, root) {
       var f1 = byId.F1;
       setInput(els.leftInput, f1.left);
       setInput(els.rightInput, f1.right);
       setCheckbox(els.trimOption, true);
       setCheckbox(els.caseOption, true);
       els.compareButton.click();
-      push(assertions, 'left stats line rendered in the DOM', 'Left: input lines 5, blank lines 1, valid non-blank rows 4, unique values 3, duplicate extra rows 1', els.leftStats.textContent, els.leftStats.textContent === 'Left: input lines 5, blank lines 1, valid non-blank rows 4, unique values 3, duplicate extra rows 1');
-      push(assertions, 'right stats line rendered in the DOM', 'Right: input lines 3, blank lines 0, valid non-blank rows 3, unique values 3, duplicate extra rows 0', els.rightStats.textContent, els.rightStats.textContent === 'Right: input lines 3, blank lines 0, valid non-blank rows 3, unique values 3, duplicate extra rows 0');
-      push(assertions, 'common group keys in left first-seen order', '"SKU-A"', keysOf(els.groupCommon), keysOf(els.groupCommon) === '"SKU-A"');
-      push(assertions, 'left-only group keys in left first-seen order', '"001", "x"', keysOf(els.groupLeftOnly), keysOf(els.groupLeftOnly) === '"001", "x"');
-      push(assertions, 'right-only group keys in right first-seen order', '"y", "1"', keysOf(els.groupRightOnly), keysOf(els.groupRightOnly) === '"y", "1"');
-      var res = els.results.textContent;
-      push(assertions, 'both SKU-A left line numbers with visible trailing space', 'line 1 raw "SKU-A " and line 3 raw "SKU-A "', (res.indexOf('line 1 raw "SKU-A "') >= 0 && res.indexOf('line 3 raw "SKU-A "') >= 0) ? 'both found' : 'missing', res.indexOf('line 1 raw "SKU-A "') >= 0 && res.indexOf('line 3 raw "SKU-A "') >= 0);
-      push(assertions, 'right SKU-A source line shown', 'line 2 raw "SKU-A"', res.indexOf('line 2 raw "SKU-A"') >= 0 ? 'found' : 'missing', res.indexOf('line 2 raw "SKU-A"') >= 0);
-      var hv = els.handoff.value;
-      push(assertions, 'handoff textarea filled with rules and groups', 'contains Rules used for this run and Only in right list (right first-seen order): 2', (hv.indexOf('Rules used for this run:') >= 0 && hv.indexOf('Only in right list (right first-seen order): 2') >= 0) ? 'both found' : 'missing', hv.indexOf('Rules used for this run:') >= 0 && hv.indexOf('Only in right list (right first-seen order): 2') >= 0);
-      push(assertions, 'handoff keeps 001 and 1 apart', 'both "  1. \\"001\\"" and "  2. \\"1\\"" present', (hv.indexOf('  1. "001"') >= 0 && hv.indexOf('  2. "1"') >= 0) ? 'both found' : 'missing', hv.indexOf('  1. "001"') >= 0 && hv.indexOf('  2. "1"') >= 0);
-      push(assertions, 'copy button enabled after a successful compare', 'false', String(els.copyButton.disabled), els.copyButton.disabled === false);
+      push(assertions, 'left final list textarea (re-queried from the real root)', '001\nx', String(finalText(root, 'final-left-only')), finalText(root, 'final-left-only') === '001\nx');
+      push(assertions, 'right final list textarea', 'y\n1', String(finalText(root, 'final-right-only')), finalText(root, 'final-right-only') === 'y\n1');
+      push(assertions, 'common final list keeps the trailing space of the A original', 'SKU-A ', String(finalText(root, 'final-common')), finalText(root, 'final-common') === 'SKU-A ');
+      var ta = root.querySelector('[data-role="final-common-text"]');
+      push(assertions, 'final list nodes are connected to the real root', 'root contains the textarea', String(root.contains(ta)), root.contains(ta) === true);
+      push(assertions, 'final list textareas are read-only', 'true', String(ta.readOnly), ta.readOnly === true);
+      push(assertions, 'left stats line rendered', 'A (left): input lines 5, blank lines 1, valid non-blank rows 4, unique values 3, duplicate extra rows 1', els.leftStats.textContent, els.leftStats.textContent === 'A (left): input lines 5, blank lines 1, valid non-blank rows 4, unique values 3, duplicate extra rows 1');
+      push(assertions, 'right stats line rendered', 'B (right): input lines 3, blank lines 0, valid non-blank rows 3, unique values 3, duplicate extra rows 0', els.rightStats.textContent, els.rightStats.textContent === 'B (right): input lines 3, blank lines 0, valid non-blank rows 3, unique values 3, duplicate extra rows 0');
+      push(assertions, 'no No-items marker when lists are non-empty', 'absent', els.results.textContent.indexOf('No items (0)') < 0 ? 'absent' : 'present', els.results.textContent.indexOf('No items (0)') < 0);
+      push(assertions, 'audit shows the comparison key label and value', 'comparison key: "SKU-A"', String(els.audit.textContent.indexOf('comparison key: "SKU-A"') >= 0), els.audit.textContent.indexOf('comparison key: "SKU-A"') >= 0);
+      push(assertions, 'audit shows both A SKU-A raw lines', 'line 1 raw "SKU-A " and line 3 raw "SKU-A "', String(els.audit.textContent.indexOf('line 1 raw "SKU-A "') >= 0 && els.audit.textContent.indexOf('line 3 raw "SKU-A "') >= 0), els.audit.textContent.indexOf('line 1 raw "SKU-A "') >= 0 && els.audit.textContent.indexOf('line 3 raw "SKU-A "') >= 0);
+      push(assertions, 'no auto handoff before Generate', 'empty handoff, generate enabled, copy disabled', 'len=' + els.handoff.value.length + ' gen=' + String(!els.generateButton.disabled) + ' copy=' + String(els.copyButton.disabled), els.handoff.value === '' && els.generateButton.disabled === false && els.copyButton.disabled === true);
     });
   });
 
-  addCase('D2-stale-on-edit', function (assertions) {
-    withApp(function (app, els) {
+  addCase('D2-empty-inputs-three-empty-lists', function (assertions) {
+    withApp(function (app, els, capture, root) {
+      setInput(els.leftInput, '');
+      setInput(els.rightInput, '');
+      els.compareButton.click();
+      push(assertions, 'empty A final list value', '', String(finalText(root, 'final-left-only')), finalText(root, 'final-left-only') === '');
+      push(assertions, 'empty B final list value', '', String(finalText(root, 'final-right-only')), finalText(root, 'final-right-only') === '');
+      push(assertions, 'empty common final list value', '', String(finalText(root, 'final-common')), finalText(root, 'final-common') === '');
+      push(assertions, 'three No-items (0) markers', '3', String((els.results.textContent.match(/No items \(0\)/g) || []).length), (els.results.textContent.match(/No items \(0\)/g) || []).length === 3);
+      push(assertions, 'zero stats on both sides', 'A zero and B zero', els.leftStats.textContent + ' | ' + els.rightStats.textContent, els.leftStats.textContent === 'A (left): input lines 0, blank lines 0, valid non-blank rows 0, unique values 0, duplicate extra rows 0' && els.rightStats.textContent === 'B (right): input lines 0, blank lines 0, valid non-blank rows 0, unique values 0, duplicate extra rows 0');
+      els.generateButton.click();
+      var hv = els.handoff.value;
+      push(assertions, 'generated handoff has an empty only-in-A block', 'BEGIN ONLY-IN-A (original values, not comparison keys)\nEND ONLY-IN-A', String(hv.indexOf('BEGIN ONLY-IN-A (original values, not comparison keys)\nEND ONLY-IN-A') >= 0), hv.indexOf('BEGIN ONLY-IN-A (original values, not comparison keys)\nEND ONLY-IN-A') >= 0);
+      push(assertions, 'four Unknown (not recorded) fields', '4', String((hv.match(/Unknown \(not recorded\)/g) || []).length), (hv.match(/Unknown \(not recorded\)/g) || []).length === 4);
+    });
+  });
+
+  addCase('D3-metadata-generate-and-stale', function (assertions) {
+    withApp(function (app, els, capture, root) {
       var f1 = byId.F1;
       setInput(els.leftInput, f1.left);
       setInput(els.rightInput, f1.right);
       els.compareButton.click();
-      setInput(els.leftInput, f1.left + '\nzzz');
-      push(assertions, 'copy disabled right after an input change', 'true', String(els.copyButton.disabled), els.copyButton.disabled === true);
-      push(assertions, 'old handoff text cleared right after an input change', '', els.handoff.value, els.handoff.value === '');
-      push(assertions, 'stale hint shown', 'Inputs or rules changed. Compare again.', els.status.textContent, els.status.textContent === 'Inputs or rules changed. Compare again.');
-      els.compareButton.click();
-      push(assertions, 're-compare recomputes the left stats from the current input', 'Left: input lines 6, blank lines 1, valid non-blank rows 5, unique values 4, duplicate extra rows 1', els.leftStats.textContent, els.leftStats.textContent === 'Left: input lines 6, blank lines 1, valid non-blank rows 5, unique values 4, duplicate extra rows 1');
-      push(assertions, 'copy enabled again after re-compare', 'false', String(els.copyButton.disabled), els.copyButton.disabled === false);
+      setInput(els.sourceA, 'Warehouse export A');
+      push(assertions, 'metadata edit clears an empty handoff and hints to regenerate', 'Handoff metadata changed. Generate the handoff again. The lists above are still current.', els.status.textContent, els.status.textContent === 'Handoff metadata changed. Generate the handoff again. The lists above are still current.');
+      push(assertions, 'lists survive a metadata edit', 'SKU-A ', String(finalText(root, 'final-common')), finalText(root, 'final-common') === 'SKU-A ');
+      setInput(els.timeA, '2026-10-17 09:00 UTC');
+      els.generateButton.click();
+      var hv = els.handoff.value;
+      push(assertions, 'generated handoff has the typed A source', 'A source description: Warehouse export A', String(hv.indexOf('A source description: Warehouse export A') >= 0), hv.indexOf('A source description: Warehouse export A') >= 0);
+      push(assertions, 'generated handoff has the typed A extraction time', 'A extraction time: 2026-10-17 09:00 UTC', String(hv.indexOf('A extraction time: 2026-10-17 09:00 UTC') >= 0), hv.indexOf('A extraction time: 2026-10-17 09:00 UTC') >= 0);
+      push(assertions, 'B fields stay unknown', 'B extraction time: Unknown (not recorded)', String(hv.indexOf('B extraction time: Unknown (not recorded)') >= 0), hv.indexOf('B extraction time: Unknown (not recorded)') >= 0);
+      push(assertions, 'no generation timestamp invented', 'none', String(hv.indexOf('Generated at') < 0 && hv.indexOf('Generation time') < 0), hv.indexOf('Generated at') < 0 && hv.indexOf('Generation time') < 0);
+      push(assertions, 'copy enabled after generation', 'false', String(els.copyButton.disabled), els.copyButton.disabled === false);
+      setInput(els.timeB, 'later');
+      push(assertions, 'second metadata edit clears the generated handoff', '', els.handoff.value, els.handoff.value === '');
+      push(assertions, 'copy disabled again', 'true', String(els.copyButton.disabled), els.copyButton.disabled === true);
+      push(assertions, 'generate offered again', 'false', String(els.generateButton.disabled), els.generateButton.disabled === false);
     });
   });
 
-  addCase('D3-F3-to-F4-case-toggle', function (assertions) {
-    withApp(function (app, els) {
+  addCase('D4-T2-edit-stale-regenerate-copy-edited', function (assertions) {
+    withApp(function (app, els, capture, root) {
+      var f1 = byId.F1;
+      setInput(els.leftInput, f1.left);
+      setInput(els.rightInput, f1.right);
+      els.compareButton.click();
+      els.generateButton.click();
+      push(assertions, 'handoff exists after explicit generate', 'non-empty', els.handoff.value.length > 0 ? 'non-empty' : 'empty', els.handoff.value.length > 0);
+      setInput(els.leftInput, f1.left + '\nzzz');
+      push(assertions, 'input edit clears lists and handoff and disables both buttons', 'empty handoff, generate+copy disabled', 'len=' + els.handoff.value.length + ' gen=' + String(els.generateButton.disabled) + ' copy=' + String(els.copyButton.disabled), els.handoff.value === '' && els.generateButton.disabled === true && els.copyButton.disabled === true);
+      push(assertions, 'stale status shown', 'Inputs or rules changed. Compare again.', els.status.textContent, els.status.textContent === 'Inputs or rules changed. Compare again.');
+      els.compareButton.click();
+      push(assertions, 're-compare grows the only-in-A final list', '001\nx\nzzz', String(finalText(root, 'final-left-only')), finalText(root, 'final-left-only') === '001\nx\nzzz');
+      push(assertions, 're-computed left stats', 'A (left): input lines 6, blank lines 1, valid non-blank rows 5, unique values 4, duplicate extra rows 1', els.leftStats.textContent, els.leftStats.textContent === 'A (left): input lines 6, blank lines 1, valid non-blank rows 5, unique values 4, duplicate extra rows 1');
+      push(assertions, 'handoff is still empty until Generate is pressed again', '', els.handoff.value, els.handoff.value === '');
+      els.generateButton.click();
+      push(assertions, 'regenerated handoff block has the new value', 'BEGIN ONLY-IN-A (original values, not comparison keys)\n001\nx\nzzz\nEND ONLY-IN-A', String(els.handoff.value.indexOf('BEGIN ONLY-IN-A (original values, not comparison keys)\n001\nx\nzzz\nEND ONLY-IN-A') >= 0), els.handoff.value.indexOf('BEGIN ONLY-IN-A (original values, not comparison keys)\n001\nx\nzzz\nEND ONLY-IN-A') >= 0);
+      els.handoff.value = 'edited handoff by tester';
+      els.copyButton.click();
+      push(assertions, 'copy uses the edited text, never a recomputed one', 'edited handoff by tester', String(capture.texts[capture.texts.length - 1]), capture.texts[capture.texts.length - 1] === 'edited handoff by tester');
+    });
+  });
+
+  addCase('D5-copy-lists-and-clipboard-fallbacks', function (assertions) {
+    withApp(function (app, els, capture, root) {
+      var f1 = byId.F1;
+      setInput(els.leftInput, f1.left);
+      setInput(els.rightInput, f1.right);
+      els.compareButton.click();
+      root.querySelector('[data-role="copy-final-left-only"]').click();
+      root.querySelector('[data-role="copy-final-right-only"]').click();
+      root.querySelector('[data-role="copy-final-common"]').click();
+      push(assertions, 'three Copy list writes carry the exact raw texts', '001\nx | y\n1 | SKU-A ', capture.texts.join(' | '), capture.texts.length === 3 && capture.texts[0] === '001\nx' && capture.texts[1] === 'y\n1' && capture.texts[2] === 'SKU-A ');
+      push(assertions, 'copy status shown', 'List copied to the clipboard.', els.status.textContent, els.status.textContent === 'List copied to the clipboard.');
+    });
+    withApp(function (app, els, capture, root) {
+      var f1 = byId.F1;
+      setInput(els.leftInput, f1.left);
+      setInput(els.rightInput, f1.right);
+      els.compareButton.click();
+      root.querySelector('[data-role="copy-final-common"]').click();
+      var ta = root.querySelector('[data-role="final-common-text"]');
+      push(assertions, 'refused clipboard falls back to selecting the textarea', 'full selection and a manual hint', 'sel=' + String(ta.selectionStart) + '-' + String(ta.selectionEnd) + ' status=' + els.status.textContent, ta.selectionStart === 0 && ta.selectionEnd === ta.value.length && els.status.textContent.indexOf('Clipboard write was refused') >= 0);
+    }, { clipboard: 'reject' });
+    withApp(function (app, els, capture, root) {
+      setInput(els.leftInput, 'a');
+      setInput(els.rightInput, 'b');
+      els.compareButton.click();
+      root.querySelector('[data-role="copy-final-common"]').click();
+      root.querySelector('[data-role="copy-final-left-only"]').click();
+      push(assertions, 'missing clipboard and throwing clipboard both give the manual path', 'two manual hints', els.status.textContent, els.status.textContent.indexOf('Clipboard access is unavailable here') >= 0);
+    }, { clipboard: 'absent' });
+    withApp(function (app, els, capture, root) {
+      setInput(els.leftInput, 'a');
+      setInput(els.rightInput, 'b');
+      els.compareButton.click();
+      root.querySelector('[data-role="copy-final-left-only"]').click();
+      push(assertions, 'a throwing clipboard gives the manual path', 'error hint', els.status.textContent, els.status.textContent.indexOf('Clipboard write threw an error') >= 0);
+    }, { clipboard: 'throw' });
+  });
+
+  addCase('D6-case-toggle-keeps-A-originals', function (assertions) {
+    withApp(function (app, els, capture, root) {
       var f3 = byId.F3;
       setInput(els.leftInput, f3.left);
       setInput(els.rightInput, f3.right);
       setCheckbox(els.trimOption, true);
       setCheckbox(els.caseOption, true);
       els.compareButton.click();
-      push(assertions, 'F3 common keys rendered', '"A"', keysOf(els.groupCommon), keysOf(els.groupCommon) === '"A"');
+      push(assertions, 'F3 common final list', 'A', String(finalText(root, 'final-common')), finalText(root, 'final-common') === 'A');
       setCheckbox(els.caseOption, false);
-      push(assertions, 'rule change marks the old result stale', 'Inputs or rules changed. Compare again.', els.status.textContent, els.status.textContent === 'Inputs or rules changed. Compare again.');
-      push(assertions, 'rule change disables copy', 'true', String(els.copyButton.disabled), els.copyButton.disabled === true);
+      push(assertions, 'rule change marks the result stale', 'Inputs or rules changed. Compare again.', els.status.textContent, els.status.textContent === 'Inputs or rules changed. Compare again.');
       els.compareButton.click();
-      push(assertions, 'F4 common keys rendered after re-compare', '"a", "x"', keysOf(els.groupCommon), keysOf(els.groupCommon) === '"a", "x"');
-      push(assertions, 'F4 both only-groups show None', 'None in both', (els.groupLeftOnly.textContent.indexOf('None') >= 0 && els.groupRightOnly.textContent.indexOf('None') >= 0) ? 'None in both' : 'missing', els.groupLeftOnly.textContent.indexOf('None') >= 0 && els.groupRightOnly.textContent.indexOf('None') >= 0);
-      push(assertions, 'raw uppercase text preserved in the rendered records', 'contains raw "A"', els.results.textContent.indexOf('raw "A"') >= 0 ? 'found' : 'missing', els.results.textContent.indexOf('raw "A"') >= 0);
-      push(assertions, 'handoff rule value flipped with the option', 'Case-sensitive = OFF', els.handoff.value.indexOf('Case-sensitive = OFF') >= 0 ? 'found' : 'missing', els.handoff.value.indexOf('Case-sensitive = OFF') >= 0);
+      push(assertions, 'F4 common final list keeps A originals, not folded keys', 'A\nx', String(finalText(root, 'final-common')), finalText(root, 'final-common') === 'A\nx');
+      push(assertions, 'F4 both only-lists are empty with the marker', '2 markers', String((els.results.textContent.match(/No items \(0\)/g) || []).length), (els.results.textContent.match(/No items \(0\)/g) || []).length === 2);
+      push(assertions, 'audit still shows the B raw values a and X', 'both present', String(els.audit.textContent.indexOf('raw "a"') >= 0 && els.audit.textContent.indexOf('raw "X"') >= 0), els.audit.textContent.indexOf('raw "a"') >= 0 && els.audit.textContent.indexOf('raw "X"') >= 0);
     });
   });
 
-  addCase('D4-F5-to-F6-trim-toggle', function (assertions) {
-    withApp(function (app, els) {
+  addCase('D7-trim-toggle', function (assertions) {
+    withApp(function (app, els, capture, root) {
       var f5 = byId.F5;
       setInput(els.leftInput, f5.left);
       setInput(els.rightInput, f5.right);
       setCheckbox(els.trimOption, true);
       setCheckbox(els.caseOption, true);
       els.compareButton.click();
-      push(assertions, 'F5 common keys rendered', '"A"', keysOf(els.groupCommon), keysOf(els.groupCommon) === '"A"');
+      push(assertions, 'F5 common final list is the trimmed-from representative raw', ' A ', String(finalText(root, 'final-common')), finalText(root, 'final-common') === ' A ');
       setCheckbox(els.trimOption, false);
       els.compareButton.click();
-      push(assertions, 'F6 common keys rendered after trim off', '" A ", "A"', keysOf(els.groupCommon), keysOf(els.groupCommon) === '" A ", "A"');
-      push(assertions, 'handoff trim value flipped with the option', 'Trim ASCII spaces/tabs at both ends = OFF', els.handoff.value.indexOf('Trim ASCII spaces/tabs at both ends = OFF') >= 0 ? 'found' : 'missing', els.handoff.value.indexOf('Trim ASCII spaces/tabs at both ends = OFF') >= 0);
+      push(assertions, 'F6 common final list holds both raw shapes', ' A \nA', String(finalText(root, 'final-common')), finalText(root, 'final-common') === ' A \nA');
     });
   });
 
-  addCase('D5-handoff-editable-copy-uses-current-value', function (assertions) {
-    withApp(function (app, els, capture) {
-      var f1 = byId.F1;
-      setInput(els.leftInput, f1.left);
-      setInput(els.rightInput, f1.right);
-      els.compareButton.click();
-      var original = els.handoff.value;
-      els.handoff.value = 'edited handoff by tester';
-      els.handoff.dispatchEvent(new Event('input', { bubbles: true }));
-      push(assertions, 'handoff textarea is editable and its value changes', 'edited handoff by tester', els.handoff.value, els.handoff.value === 'edited handoff by tester' && els.handoff.value !== original);
-      els.copyButton.click();
-      push(assertions, 'copy handler reads the current textarea value', 'edited handoff by tester', String(capture.text), capture.text === 'edited handoff by tester');
-      push(assertions, 'self-check used the injected clipboard stub, not the system clipboard', '1 stub write', capture.writes + ' stub write', capture.writes === 1);
-    });
-  });
-
-  addCase('D6-F9-no-html-injection', function (assertions) {
-    withApp(function (app, els) {
+  addCase('D8-F9-no-html-injection', function (assertions) {
+    withApp(function (app, els, capture, root) {
       var f9 = byId.F9;
       setInput(els.leftInput, f9.left);
       setInput(els.rightInput, f9.right);
       els.compareButton.click();
-      var injected = els.results.querySelectorAll('img, script, iframe').length;
+      var injected = root.querySelectorAll('img, script, iframe').length;
       push(assertions, 'no img/script/iframe element created from list content', '0', String(injected), injected === 0);
       push(assertions, 'literal markup string shown as text', 'contains \u003cimg src=x onerror=alert(1)>', els.results.textContent.indexOf('\u003cimg src=x onerror=alert(1)>') >= 0 ? 'found' : 'missing', els.results.textContent.indexOf('\u003cimg src=x onerror=alert(1)>') >= 0);
-      push(assertions, 'prototype key handled as an ordinary value', 'contains "__proto__"', els.results.textContent.indexOf('"__proto__"') >= 0 ? 'found' : 'missing', els.results.textContent.indexOf('"__proto__"') >= 0);
+      push(assertions, 'prototype key handled as an ordinary value', 'contains "__proto__"', String(finalText(root, 'final-left-only') === '__proto__'), finalText(root, 'final-left-only') === '__proto__');
     });
   });
 
-  addCase('D7-limits-clear-old-results', function (assertions) {
-    withApp(function (app, els) {
+  addCase('D9-limits-clear-old-results', function (assertions) {
+    withApp(function (app, els, capture, root) {
       var f1 = byId.F1;
       var f10 = byId.F10;
       var f11 = byId.F11;
       setInput(els.leftInput, f1.left);
       setInput(els.rightInput, f1.right);
       els.compareButton.click();
+      els.generateButton.click();
       setInput(els.leftInput, expandFixtureInput(f10, 'left'));
       els.compareButton.click();
       push(assertions, 'F10 shows the pre-declared error code', 'status starts with INPUT_TOO_LONG:', els.status.textContent.slice(0, 20), els.status.textContent.indexOf('INPUT_TOO_LONG:') === 0);
       push(assertions, 'F10 clears the old result area', 'No comparison result yet.', els.results.textContent, els.results.textContent === 'No comparison result yet.');
-      push(assertions, 'F10 clears the old handoff and disables copy', 'empty handoff and disabled copy', 'handoff length ' + els.handoff.value.length + ', copy disabled ' + String(els.copyButton.disabled), els.handoff.value === '' && els.copyButton.disabled === true);
+      push(assertions, 'F10 clears the old handoff and disables generate and copy', 'empty and disabled', 'len=' + els.handoff.value.length + ' gen=' + String(els.generateButton.disabled) + ' copy=' + String(els.copyButton.disabled), els.handoff.value === '' && els.generateButton.disabled === true && els.copyButton.disabled === true);
       setInput(els.leftInput, expandFixtureInput(f11, 'left'));
       els.compareButton.click();
       push(assertions, 'F11 shows the pre-declared error code', 'status starts with TOO_MANY_LINES:', els.status.textContent.slice(0, 20), els.status.textContent.indexOf('TOO_MANY_LINES:') === 0);
@@ -1135,17 +1713,27 @@ function runDomTests(fixtures) {
     });
   });
 
-  addCase('D8-clear', function (assertions) {
-    withApp(function (app, els) {
+  addCase('D10-clear-and-metadata-limit', function (assertions) {
+    withApp(function (app, els, capture, root) {
       var f1 = byId.F1;
       setInput(els.leftInput, f1.left);
       setInput(els.rightInput, f1.right);
+      setInput(els.sourceA, 'Warehouse export A');
       els.compareButton.click();
+      els.generateButton.click();
       els.clearButton.click();
-      push(assertions, 'clear empties both inputs', '|', els.leftInput.value + '|' + els.rightInput.value, els.leftInput.value === '' && els.rightInput.value === '');
+      push(assertions, 'clear empties both lists and all four metadata fields', 'all empty', els.leftInput.value + '|' + els.rightInput.value + '|' + els.sourceA.value + '|' + els.timeA.value + '|' + els.sourceB.value + '|' + els.timeB.value, els.leftInput.value === '' && els.rightInput.value === '' && els.sourceA.value === '' && els.timeA.value === '' && els.sourceB.value === '' && els.timeB.value === '');
       push(assertions, 'clear resets the result area', 'No comparison result yet.', els.results.textContent, els.results.textContent === 'No comparison result yet.');
-      push(assertions, 'clear empties the handoff text', '', els.handoff.value, els.handoff.value === '');
-      push(assertions, 'clear disables copy', 'true', String(els.copyButton.disabled), els.copyButton.disabled === true);
+      push(assertions, 'clear empties the handoff and disables generate and copy', 'empty and disabled', 'len=' + els.handoff.value.length + ' gen=' + String(els.generateButton.disabled) + ' copy=' + String(els.copyButton.disabled), els.handoff.value === '' && els.generateButton.disabled === true && els.copyButton.disabled === true);
+      setInput(els.leftInput, f1.left);
+      setInput(els.rightInput, f1.right);
+      els.compareButton.click();
+      els.generateButton.click();
+      var good = els.handoff.value.length > 0;
+      setInput(els.sourceA, new Array(2002).join('a'));
+      els.generateButton.click();
+      push(assertions, 'over-long metadata is refused with a clear error', 'status starts with A metadata field is over 2,000 characters', els.status.textContent.slice(0, 44), els.status.textContent.indexOf('A metadata field is over 2,000 characters') === 0);
+      push(assertions, 'over-long metadata clears the previous handoff and disables copy', 'empty and disabled', 'goodBefore=' + String(good) + ' len=' + els.handoff.value.length + ' copy=' + String(els.copyButton.disabled), good && els.handoff.value === '' && els.copyButton.disabled === true);
     });
   });
 
@@ -1192,19 +1780,19 @@ function startPage() {
       try {
         coreReport = runAcceptanceTests(fixtures);
       } catch (e1) {
-        coreReport = { schemaVersion: 1, passed: false, cases: [], runnerError: String(e1) };
+        coreReport = { schemaVersion: 2, passed: false, cases: [], runnerError: String(e1) };
       }
       try {
         domReport = runDomTests(fixtures);
       } catch (e2) {
-        domReport = { schemaVersion: 1, passed: false, cases: [], runnerError: String(e2) };
+        domReport = { schemaVersion: 2, passed: false, cases: [], runnerError: String(e2) };
       }
       renderReport(document.getElementById('core-report'), coreReport);
       renderReport(document.getElementById('dom-report'), domReport);
       var gate = coreReport.passed === true && domReport.passed === true;
       app.setControlsEnabled(gate);
       gateStatus.textContent = gate
-        ? 'All synthetic checks passed. The comparison controls below are enabled.'
+        ? 'All synthetic checks passed. The comparison controls in the workspace are enabled.'
         : 'Some synthetic checks failed (see the reports above). The comparison controls stay disabled.';
     }
     rerunButton.addEventListener('click', runAll);
